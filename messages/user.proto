@@ -1,0 +1,19 @@
+syntax = "proto3";
+package user;
+
+// [RINF:DART-SIGNAL]
+message UserProto {
+  string email_addr = 1;
+  string password = 2;
+}
+
+// [RINF:RUST-SIGNAL]
+message RustUser {
+  string confirmation = 1;
+}
+
+// [RINF:RUST-SIGNAL]
+message RustResult {
+  bool result = 1;
+  string info = 2;
+}
