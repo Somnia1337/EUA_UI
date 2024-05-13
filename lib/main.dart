@@ -87,7 +87,7 @@ class _MyAppState extends State<MyApp> {
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          fontFamily: 'Microsoft JhengHei UI',
+                          fontFamily: 'DingTalk',
                         )),
                   ),
                   Padding(
@@ -96,7 +96,7 @@ class _MyAppState extends State<MyApp> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          fontFamily: 'Microsoft JhengHei UI',
+                          fontFamily: 'DingTalk',
                         )),
                   ),
                 ],
@@ -107,6 +107,10 @@ class _MyAppState extends State<MyApp> {
                     Icons.email_outlined,
                     size: 40,
                   ),
+                  selectedIcon: const Icon(
+                    Icons.email,
+                    size: 60,
+                  ),
                   label: const Text('写信'),
                   disabled: !_isLoggedIn,
                 ),
@@ -115,13 +119,21 @@ class _MyAppState extends State<MyApp> {
                     Icons.inbox_outlined,
                     size: 40,
                   ),
+                  selectedIcon: const Icon(
+                    Icons.inbox,
+                    size: 60,
+                  ),
                   label: const Text('收信'),
                   disabled: !_isLoggedIn,
                 ),
                 const NavigationRailDestination(
                   icon: Icon(
                     Icons.settings_outlined,
-                    size: 40,
+                    size: 60,
+                  ),
+                  selectedIcon: Icon(
+                    Icons.settings,
+                    size: 60,
                   ),
                   label: Text('设置'),
                 ),

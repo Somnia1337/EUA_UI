@@ -15,7 +15,7 @@ class _ComposePageState extends State<ComposePage> {
 
   bool _isComposing = false;
 
-  final _stream = RustUser.rustSignalStream;
+  final _rustResultStream = RustResult.rustSignalStream;
 
   @override
   void dispose() {
@@ -25,17 +25,15 @@ class _ComposePageState extends State<ComposePage> {
     super.dispose();
   }
 
-  void sendUser() {
-    UserProto(emailAddr: "123@1.1", password: "123").sendSignalToRust();
-  }
-
-  Future<String> receiveUser() async {
-    RustUser user;
-    await for (final rustSignal in _stream) {
-      user = rustSignal.message;
-      return user.confirmation;
-    }
-    throw Exception('No user received or user is null.');
+  Future<bool> sendEmail() async {
+    EmailProto(
+            recipient: _recipientController.text,
+            subject: _subjectController.text,
+            body: _bodyController.text)
+        .sendSignalToRust();
+    final rustSignal = await _rustResultStream.first;
+    RustResult loginResult = rustSignal.message;
+    return loginResult.result;
   }
 
   @override
@@ -56,7 +54,7 @@ class _ComposePageState extends State<ComposePage> {
           ),
         ),
         onPressed: () {
-          sendUser();
+          sendEmail();
           // Future<String> confimation = receiveUser();
 
           setState(() {

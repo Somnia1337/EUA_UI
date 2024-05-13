@@ -33,12 +33,15 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
-  void sendUser(String emailAddr, String password) {
-    UserProto(emailAddr: emailAddr, password: password).sendSignalToRust();
+  void sendUser() {
+    UserProto(
+            emailAddr: _emailAddrController.text,
+            password: _passwordController.text)
+        .sendSignalToRust();
   }
 
   Future<bool> login() async {
-    sendUser(_emailAddrController.text, _passwordController.text);
+    sendUser();
     _emailAddr = _emailAddrController.text;
     final rustSignal = await _stream.first;
     RustResult loginResult = rustSignal.message;
@@ -87,15 +90,15 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Text('卢剑歌 2022141461145',
               style: TextStyle(
                 fontSize: 18,
-                fontFamily: 'Microsoft JhengHei UI',
+                fontFamily: 'Consolas',
               )),
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
-          child: Text('[项目地址]',
+          child: Text('https://github.com/Somnia1337/EUA_UI',
               style: TextStyle(
                 fontSize: 18,
-                fontFamily: 'Microsoft JhengHei UI',
+                fontFamily: 'Consolas',
               )),
         ),
         Padding(
@@ -156,9 +159,17 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(0, 18, 0, 8),
+                          child: Text('欢迎 👋 你已登录到',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontFamily: 'Microsoft JhengHei UI',
+                              )),
+                        ),
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(0, 18, 0, 8),
-                          child: Text('欢迎 👋 $_emailAddr',
+                          padding: const EdgeInsets.fromLTRB(0, 0, 0, 18),
+                          child: Text(_emailAddr,
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontFamily: 'Microsoft JhengHei UI',

@@ -7,9 +7,11 @@ message UserProto {
   string password = 2;
 }
 
-// [RINF:RUST-SIGNAL]
-message RustUser {
-  string confirmation = 1;
+// [RINF:DART-SIGNAL]
+message EmailProto {
+  string recipient = 1;
+  string subject = 2;
+  string body = 3;
 }
 
 // [RINF:RUST-SIGNAL]
