@@ -1,4 +1,5 @@
 import 'package:eua_ui/messages/user.pbserver.dart';
+import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:flutter/material.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -19,7 +20,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _emailAddrController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  final _stream = RustResult.rustSignalStream;
+  final _rustResultListener = RustResult.rustSignalStream;
 
   String _emailAddr = "";
 
@@ -33,30 +34,45 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
-  void sendUser() {
+  Future<bool> login() async {
+    if (_emailAddrController.text == "") {
+      _showSnackBar('❗"邮箱"是必填字段！', const Duration(seconds: 2));
+      return Future.value(false);
+    }
+    if (_passwordController.text == "") {
+      _showSnackBar('❗"授权码"是必填字段！', const Duration(seconds: 2));
+      return Future.value(false);
+    }
+    pb.Action(action: 0).sendSignalToRust();
     UserProto(
             emailAddr: _emailAddrController.text,
             password: _passwordController.text)
         .sendSignalToRust();
-  }
-
-  Future<bool> login() async {
-    sendUser();
     _emailAddr = _emailAddrController.text;
-    final rustSignal = await _stream.first;
-    RustResult loginResult = rustSignal.message;
-    return loginResult.result;
+    RustResult loginResult = (await _rustResultListener.first).message;
+    if (loginResult.result) {
+      _showSnackBar('✅登录成功', const Duration(seconds: 2));
+      return true;
+    }
+    _showSnackBar('❌登录失败：${loginResult.info}', const Duration(seconds: 5));
+    return false;
   }
 
   Future<bool> logout() async {
-    return Future.value(true);
+    pb.Action(action: 1).sendSignalToRust();
+    if ((await _rustResultListener.first).message.result) {
+      _showSnackBar('✅已退出登录', const Duration(seconds: 2));
+      return true;
+    } else {
+      return false;
+    }
   }
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, Duration duration) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        duration: const Duration(seconds: 2),
+        duration: duration,
       ),
     );
   }
@@ -64,6 +80,12 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     Brightness currentBrightness = Theme.of(context).brightness;
+
+    const sizedBox = SizedBox(height: 16);
+
+    const textStyle = TextStyle(
+      fontSize: 18,
+    );
 
     final toggleDarkModeButton = SizedBox(
       width: 300,
@@ -86,7 +108,7 @@ class _SettingsPageState extends State<SettingsPage> {
     const info = Column(
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(0, 18, 0, 8),
+          padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
           child: Text('卢剑歌 2022141461145',
               style: TextStyle(
                 fontSize: 18,
@@ -102,7 +124,7 @@ class _SettingsPageState extends State<SettingsPage> {
               )),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(0, 0, 0, 18),
+          padding: EdgeInsets.all(0),
           child: Text('v0.1.0',
               style: TextStyle(
                 fontSize: 16,
@@ -123,8 +145,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   if (widget.onLoginStatusChanged != null) {
                     widget.onLoginStatusChanged!(true);
                   }
-                } else {
-                  _showSnackBar('登录失败，请重试');
                 }
               }
             : () async {
@@ -160,22 +180,16 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         const Padding(
-                          padding: EdgeInsets.fromLTRB(0, 18, 0, 8),
-                          child: Text('欢迎 👋 你已登录到',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontFamily: 'Microsoft JhengHei UI',
-                              )),
+                          padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
+                          child: Text('欢迎 👋 你已登录到', style: textStyle),
                         ),
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(0, 0, 0, 18),
-                          child: Text(_emailAddr,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontFamily: 'Microsoft JhengHei UI',
-                              )),
+                          padding: const EdgeInsets.all(0),
+                          child: Text(_emailAddr, style: textStyle),
                         ),
+                        sizedBox,
                         toggleDarkModeButton,
+                        sizedBox,
                         info,
                       ],
                     ),
@@ -185,7 +199,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
-                        const SizedBox(height: 16),
+                        sizedBox,
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 300),
                           child: TextFormField(
@@ -197,7 +211,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             keyboardType: TextInputType.emailAddress,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        sizedBox,
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 300),
                           child: TextFormField(
@@ -219,8 +233,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        sizedBox,
                         toggleDarkModeButton,
+                        sizedBox,
                         info,
                       ],
                     ),

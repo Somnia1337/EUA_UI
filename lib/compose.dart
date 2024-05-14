@@ -1,4 +1,5 @@
 import 'package:eua_ui/messages/user.pbserver.dart';
+import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:flutter/material.dart';
 
 class ComposePage extends StatefulWidget {
@@ -13,7 +14,7 @@ class _ComposePageState extends State<ComposePage> {
   final _subjectController = TextEditingController();
   final _bodyController = TextEditingController();
 
-  bool _isComposing = false;
+  bool _isComposing = true;
 
   final _rustResultStream = RustResult.rustSignalStream;
 
@@ -26,6 +27,7 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<bool> sendEmail() async {
+    pb.Action(action: 2).sendSignalToRust();
     EmailProto(
             recipient: _recipientController.text,
             subject: _subjectController.text,
@@ -39,28 +41,57 @@ class _ComposePageState extends State<ComposePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            return RotationTransition(
-              turns: animation,
-              child: child,
-            );
-          },
-          child: Icon(
-            _isComposing ? Icons.close : Icons.add,
-            key: ValueKey<bool>(_isComposing),
+      floatingActionButton: Wrap(
+        direction: Axis.horizontal,
+        children: <Widget>[
+          Container(
+            margin: const EdgeInsets.all(10),
+            child: _isComposing
+                ? FloatingActionButton(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder:
+                          (Widget child, Animation<double> animation) {
+                        return RotationTransition(
+                          turns: animation,
+                          child: child,
+                        );
+                      },
+                      child: Icon(
+                        Icons.send,
+                        key: ValueKey<bool>(_isComposing),
+                      ),
+                    ),
+                    onPressed: () {
+                      sendEmail();
+                    },
+                  )
+                : null,
           ),
-        ),
-        onPressed: () {
-          sendEmail();
-          // Future<String> confimation = receiveUser();
-
-          setState(() {
-            _isComposing = !_isComposing;
-          });
-        },
+          Container(
+            margin: const EdgeInsets.all(10),
+            child: FloatingActionButton(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return RotationTransition(
+                    turns: animation,
+                    child: child,
+                  );
+                },
+                child: Icon(
+                  _isComposing ? Icons.close : Icons.add,
+                  key: ValueKey<bool>(_isComposing),
+                ),
+              ),
+              onPressed: () {
+                setState(() {
+                  _isComposing = !_isComposing;
+                });
+              },
+            ),
+          ),
+        ],
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 500),
@@ -109,7 +140,7 @@ class _ComposePageState extends State<ComposePage> {
                         ),
                         keyboardType: TextInputType.multiline,
                         maxLines: null,
-                        expands: false,
+                        expands: true,
                       ),
                     ),
                   ],

@@ -2,6 +2,11 @@ syntax = "proto3";
 package user;
 
 // [RINF:DART-SIGNAL]
+message Action {
+  int32 action = 1;
+}
+
+// [RINF:DART-SIGNAL]
 message UserProto {
   string email_addr = 1;
   string password = 2;

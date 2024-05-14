@@ -105,11 +105,11 @@ class _MyAppState extends State<MyApp> {
                 NavigationRailDestination(
                   icon: const Icon(
                     Icons.email_outlined,
-                    size: 40,
+                    size: 30,
                   ),
                   selectedIcon: const Icon(
                     Icons.email,
-                    size: 60,
+                    size: 50,
                   ),
                   label: const Text('写信'),
                   disabled: !_isLoggedIn,
@@ -117,11 +117,11 @@ class _MyAppState extends State<MyApp> {
                 NavigationRailDestination(
                   icon: const Icon(
                     Icons.inbox_outlined,
-                    size: 40,
+                    size: 30,
                   ),
                   selectedIcon: const Icon(
                     Icons.inbox,
-                    size: 60,
+                    size: 50,
                   ),
                   label: const Text('收信'),
                   disabled: !_isLoggedIn,
@@ -129,11 +129,11 @@ class _MyAppState extends State<MyApp> {
                 const NavigationRailDestination(
                   icon: Icon(
                     Icons.settings_outlined,
-                    size: 60,
+                    size: 30,
                   ),
                   selectedIcon: Icon(
                     Icons.settings,
-                    size: 60,
+                    size: 50,
                   ),
                   label: Text('设置'),
                 ),

@@ -18,5 +18,5 @@ rinf::write_interface!();
 async fn main() {
     // Repeat `tokio::spawn` anywhere in your code
     // if more concurrent tasks are needed.
-    tokio::spawn(user::login());
+    tokio::spawn(user::main_logic());
 }
