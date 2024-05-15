@@ -14,7 +14,10 @@ class _ComposePageState extends State<ComposePage> {
   final _subjectController = TextEditingController();
   final _bodyController = TextEditingController();
 
-  bool _isComposing = true;
+  bool _isComposing = false;
+  bool _emailSent = false;
+
+  String _recipient = "";
 
   final _rustResultStream = RustResult.rustSignalStream;
 
@@ -26,28 +29,118 @@ class _ComposePageState extends State<ComposePage> {
     super.dispose();
   }
 
-  Future<bool> sendEmail() async {
+  void _clearContent() {
+    _recipientController.clear();
+    _subjectController.clear();
+    _bodyController.clear();
+  }
+
+  void send() async {
     pb.Action(action: 2).sendSignalToRust();
     EmailProto(
             recipient: _recipientController.text,
             subject: _subjectController.text,
             body: _bodyController.text)
         .sendSignalToRust();
-    final rustSignal = await _rustResultStream.first;
-    RustResult loginResult = rustSignal.message;
-    return loginResult.result;
+    final sendResult = (await _rustResultStream.first).message;
+    if (sendResult.result) {
+      _recipient = _recipientController.text;
+      setState(() {
+        _isComposing = false;
+        _emailSent = true;
+      });
+      _clearContent();
+    } else {
+      _showSnackBar('❌邮件发送失败：${sendResult.info}', const Duration(seconds: 5));
+    }
+  }
+
+  void _showSnackBar(String message, Duration duration) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: duration,
+      ),
+    );
+  }
+
+  void _draftSavingDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("提示"),
+          content: const Text("要保存草稿吗？"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _clearContent();
+                Navigator.of(context).pop();
+                setState(() {
+                  _isComposing = false;
+                });
+              },
+              child: const Text("丢弃"),
+            ),
+            TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  setState(() {
+                    _isComposing = false;
+                  });
+                },
+                child: const Text("保存")),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: Wrap(
-        direction: Axis.horizontal,
+        direction: Axis.vertical,
+        verticalDirection: VerticalDirection.up,
         children: <Widget>[
           Container(
-            margin: const EdgeInsets.all(10),
+            margin: const EdgeInsets.fromLTRB(0, 10, 0, 0),
+            child: FloatingActionButton(
+              tooltip: _isComposing ? '取消' : '新邮件',
+              onPressed: () {
+                if (_isComposing &&
+                    (_recipientController.text != "" ||
+                        _subjectController.text != "" ||
+                        _bodyController.text != "")) {
+                  _draftSavingDialog(context);
+                } else {
+                  setState(() {
+                    _isComposing = !_isComposing;
+                  });
+                }
+              },
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return RotationTransition(
+                    turns: animation,
+                    child: child,
+                  );
+                },
+                child: Icon(
+                  _isComposing ? Icons.close : Icons.add,
+                  key: ValueKey<bool>(_isComposing),
+                ),
+              ),
+            ),
+          ),
+          Container(
             child: _isComposing
                 ? FloatingActionButton(
+                    tooltip: '发送',
+                    onPressed: () {
+                      send();
+                    },
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
                       transitionBuilder:
@@ -62,34 +155,8 @@ class _ComposePageState extends State<ComposePage> {
                         key: ValueKey<bool>(_isComposing),
                       ),
                     ),
-                    onPressed: () {
-                      sendEmail();
-                    },
                   )
                 : null,
-          ),
-          Container(
-            margin: const EdgeInsets.all(10),
-            child: FloatingActionButton(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return RotationTransition(
-                    turns: animation,
-                    child: child,
-                  );
-                },
-                child: Icon(
-                  _isComposing ? Icons.close : Icons.add,
-                  key: ValueKey<bool>(_isComposing),
-                ),
-              ),
-              onPressed: () {
-                setState(() {
-                  _isComposing = !_isComposing;
-                });
-              },
-            ),
           ),
         ],
       ),
@@ -148,7 +215,14 @@ class _ComposePageState extends State<ComposePage> {
               )
             : Center(
                 key: ValueKey<bool>(!_isComposing),
-                child: const Text('Compose Page'),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                  child: Text(_emailSent ? '邮件已发送至 $_recipient' : '你还未发送过邮件',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontFamily: 'Consolas',
+                      )),
+                ),
               ),
       ),
     );

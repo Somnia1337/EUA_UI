@@ -1,14 +1,10 @@
-use crate::messages::{
-    self,
-    user::{self, *},
-};
+use crate::messages::user::*;
 
 use std::error::Error;
 
-use imap::{self, Connection, Session};
 use lettre::{
     message::{header::ContentType, Mailbox},
-    transport::smtp::{self, authentication::Credentials},
+    transport::smtp::authentication::Credentials,
     Address, Message, SmtpTransport, Transport,
 };
 
@@ -125,7 +121,17 @@ impl User {
         let email = Message::builder()
             .from(Mailbox::from(self.email_addr.clone()))
             .to(Mailbox::from(
-                email_proto.recipient.parse::<Address>().unwrap(),
+                match email_proto.recipient.parse::<Address>() {
+                    Ok(to) => to,
+                    Err(e) => {
+                        RustResult {
+                            result: false,
+                            info: e.to_string(),
+                        }
+                        .send_signal_to_dart();
+                        return;
+                    }
+                },
             ))
             .subject(email_proto.subject)
             .header(ContentType::TEXT_PLAIN)

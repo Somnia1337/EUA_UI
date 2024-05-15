@@ -68,6 +68,27 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  void _triggerLoginOrLogout() async {
+    if (!_isLoggedIn) {
+      if (await login()) {
+        setState(() {
+          _isLoggedIn = true;
+        });
+        if (widget.onLoginStatusChanged != null) {
+          widget.onLoginStatusChanged!(true);
+        }
+      }
+    } else {
+      logout();
+      setState(() {
+        _isLoggedIn = false;
+      });
+      if (widget.onLoginStatusChanged != null) {
+        widget.onLoginStatusChanged!(false);
+      }
+    }
+  }
+
   void _showSnackBar(String message, Duration duration) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -85,6 +106,12 @@ class _SettingsPageState extends State<SettingsPage> {
 
     const textStyle = TextStyle(
       fontSize: 18,
+    );
+
+    final logControlButton = IconButton(
+      onPressed: _triggerLoginOrLogout,
+      tooltip: _isLoggedIn ? '退出登录' : '登录',
+      icon: Icon(!_isLoggedIn ? Icons.login_outlined : Icons.logout_outlined),
     );
 
     final toggleDarkModeButton = SizedBox(
@@ -135,40 +162,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: !_isLoggedIn
-            ? () async {
-                if (await login()) {
-                  setState(() {
-                    _isLoggedIn = true;
-                  });
-                  if (widget.onLoginStatusChanged != null) {
-                    widget.onLoginStatusChanged!(true);
-                  }
-                }
-              }
-            : () async {
-                logout();
-                setState(() {
-                  _isLoggedIn = false;
-                });
-                if (widget.onLoginStatusChanged != null) {
-                  widget.onLoginStatusChanged!(false);
-                }
-              },
-        tooltip: _isLoggedIn ? '退出登录' : '登录',
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            return RotationTransition(
-              turns: animation,
-              child: child,
-            );
-          },
-          child:
-              Icon(!_isLoggedIn ? Icons.login_outlined : Icons.logout_outlined),
-        ),
-      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -179,14 +172,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
-                          child: Text('欢迎 👋 你已登录到', style: textStyle),
-                        ),
                         Padding(
                           padding: const EdgeInsets.all(0),
-                          child: Text(_emailAddr, style: textStyle),
+                          child: Text('欢迎 👋 $_emailAddr', style: textStyle),
                         ),
+                        sizedBox,
+                        logControlButton,
+                        sizedBox,
                         sizedBox,
                         toggleDarkModeButton,
                         sizedBox,
@@ -210,29 +202,36 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                             keyboardType: TextInputType.emailAddress,
                           ),
+                          // todo: onEditingComplete 聚焦密码框
+                          // todo: ComposePage 的输入框也是
                         ),
                         sizedBox,
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 300),
                           child: TextFormField(
-                            controller: _passwordController,
-                            obscureText: !_isPasswordVisible,
-                            decoration: InputDecoration(
-                              labelText: '授权码 (不是邮箱密码!!)',
-                              border: const OutlineInputBorder(),
-                              suffixIcon: IconButton(
-                                icon: Icon(_isPasswordVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off),
-                                onPressed: () {
-                                  setState(() {
-                                    _isPasswordVisible = !_isPasswordVisible;
-                                  });
-                                },
+                              controller: _passwordController,
+                              obscureText: !_isPasswordVisible,
+                              decoration: InputDecoration(
+                                labelText: '授权码 (不是邮箱密码!!)',
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  icon: Icon(_isPasswordVisible
+                                      ? Icons.visibility
+                                      : Icons.visibility_off),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isPasswordVisible = !_isPasswordVisible;
+                                    });
+                                  },
+                                ),
                               ),
-                            ),
-                          ),
+                              onEditingComplete: () {
+                                _triggerLoginOrLogout();
+                              }),
                         ),
+                        sizedBox,
+                        logControlButton,
+                        sizedBox,
                         sizedBox,
                         toggleDarkModeButton,
                         sizedBox,

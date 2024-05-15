@@ -22,17 +22,17 @@ class _MyAppState extends State<MyApp> {
   bool _isLoggedIn = false;
   bool _isDarkMode = false;
 
-  final ThemeData _lightTheme = ThemeData(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color.fromRGBO(56, 132, 255, 0.2),
-    ),
+  final _seedColor = const Color.fromRGBO(56, 132, 255, 1);
+
+  late final ThemeData _lightTheme = ThemeData(
+    colorScheme: ColorScheme.fromSeed(seedColor: _seedColor),
     useMaterial3: false,
   );
 
-  final ThemeData _darkTheme = ThemeData(
+  late final ThemeData _darkTheme = ThemeData(
     brightness: Brightness.dark,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color.fromRGBO(56, 132, 255, 0.2),
+      seedColor: _seedColor,
       brightness: Brightness.dark,
     ),
     useMaterial3: false,
@@ -79,10 +79,20 @@ class _MyAppState extends State<MyApp> {
               selectedIndex: _selectedIndex,
               onDestinationSelected: _onItemTapped,
               labelType: NavigationRailLabelType.all,
+              backgroundColor: Color.fromRGBO(
+                _seedColor.red,
+                _seedColor.green,
+                _seedColor.blue,
+                0.1,
+              ),
+              selectedLabelTextStyle: TextStyle(
+                fontSize: 16,
+                color: _seedColor,
+              ),
               leading: const Column(
                 children: [
                   Padding(
-                    padding: EdgeInsets.fromLTRB(18, 18, 18, 8),
+                    padding: EdgeInsets.fromLTRB(24, 24, 24, 8),
                     child: Text('谐声收藏家',
                         style: TextStyle(
                           fontSize: 26,
@@ -99,6 +109,7 @@ class _MyAppState extends State<MyApp> {
                           fontFamily: 'DingTalk',
                         )),
                   ),
+                  SizedBox(height: 24),
                 ],
               ),
               destinations: [
