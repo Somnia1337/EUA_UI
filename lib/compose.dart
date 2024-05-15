@@ -1,6 +1,10 @@
+import 'dart:math';
+
+import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pbserver.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class ComposePage extends StatefulWidget {
   const ComposePage({super.key});
@@ -13,26 +17,55 @@ class _ComposePageState extends State<ComposePage> {
   final _recipientController = TextEditingController();
   final _subjectController = TextEditingController();
   final _bodyController = TextEditingController();
+  final _subjectFocusNode = FocusNode();
+  final _bodyFocusNode = FocusNode();
 
   bool _isComposing = false;
   bool _emailSent = false;
 
-  String _recipient = "";
+  final _sent = [];
 
   final _rustResultStream = RustResult.rustSignalStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final loginStatusNotifier =
+        Provider.of<LoginStatusNotifier>(context, listen: false);
+    loginStatusNotifier.addListener(_handleLoginStatusChange);
+  }
 
   @override
   void dispose() {
     _recipientController.dispose();
     _subjectController.dispose();
     _bodyController.dispose();
+    _subjectFocusNode.dispose();
+    _bodyFocusNode.dispose();
+    final loginStatusNotifier =
+        Provider.of<LoginStatusNotifier>(context, listen: false);
+    loginStatusNotifier.removeListener(_handleLoginStatusChange);
     super.dispose();
+  }
+
+  void _handleLoginStatusChange() {
+    final loginStatusNotifier =
+        Provider.of<LoginStatusNotifier>(context, listen: false);
+    if (!loginStatusNotifier.isLoggedIn) {
+      _reset();
+    }
   }
 
   void _clearContent() {
     _recipientController.clear();
     _subjectController.clear();
     _bodyController.clear();
+  }
+
+  void _reset() {
+    _clearContent();
+    _emailSent = false;
+    _sent.clear();
   }
 
   void send() async {
@@ -44,11 +77,11 @@ class _ComposePageState extends State<ComposePage> {
         .sendSignalToRust();
     final sendResult = (await _rustResultStream.first).message;
     if (sendResult.result) {
-      _recipient = _recipientController.text;
       setState(() {
         _isComposing = false;
         _emailSent = true;
       });
+      _sent.add([_recipientController.text, _subjectController.text]);
       _clearContent();
     } else {
       _showSnackBar('❌邮件发送失败：${sendResult.info}', const Duration(seconds: 5));
@@ -74,20 +107,20 @@ class _ComposePageState extends State<ComposePage> {
           actions: [
             TextButton(
               onPressed: () {
-                _clearContent();
-                Navigator.of(context).pop();
                 setState(() {
                   _isComposing = false;
                 });
+                _clearContent();
+                Navigator.of(context).pop();
               },
               child: const Text("丢弃"),
             ),
             TextButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
                   setState(() {
                     _isComposing = false;
                   });
+                  Navigator.of(context).pop();
                 },
                 child: const Text("保存")),
           ],
@@ -161,70 +194,121 @@ class _ComposePageState extends State<ComposePage> {
         ],
       ),
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 500),
-        transitionBuilder: (Widget child, Animation<double> animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
-        },
-        child: _isComposing
-            ? Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const SizedBox(height: 16.0),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 300),
-                      child: TextFormField(
-                        controller: _recipientController,
-                        decoration: const InputDecoration(
-                          labelText: '收件人',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-                    ),
-                    const SizedBox(height: 16.0),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 300),
-                      child: TextFormField(
-                        controller: _subjectController,
-                        decoration: const InputDecoration(
-                          labelText: '主题',
-                          border: OutlineInputBorder(),
+          duration: const Duration(milliseconds: 500),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+          child: _isComposing
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const SizedBox(height: 16.0),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 300),
+                        child: TextFormField(
+                          controller: _recipientController,
+                          decoration: const InputDecoration(
+                            labelText: '收件人',
+                            border: UnderlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                          onFieldSubmitted: (value) {
+                            FocusScope.of(context)
+                                .requestFocus(_subjectFocusNode);
+                          },
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16.0),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _bodyController,
-                        decoration: const InputDecoration(
-                          labelText: '正文',
-                          border: OutlineInputBorder(),
+                      const SizedBox(height: 16.0),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        child: TextFormField(
+                          controller: _subjectController,
+                          focusNode: _subjectFocusNode,
+                          decoration: const InputDecoration(
+                            labelText: '主题',
+                            border: UnderlineInputBorder(),
+                          ),
+                          onFieldSubmitted: (value) {
+                            FocusScope.of(context).requestFocus(_bodyFocusNode);
+                          },
                         ),
-                        keyboardType: TextInputType.multiline,
-                        maxLines: null,
-                        expands: true,
                       ),
-                    ),
-                  ],
-                ),
-              )
-            : Center(
-                key: ValueKey<bool>(!_isComposing),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
-                  child: Text(_emailSent ? '邮件已发送至 $_recipient' : '你还未发送过邮件',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontFamily: 'Consolas',
-                      )),
-                ),
-              ),
-      ),
+                      const SizedBox(height: 16.0),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _bodyController,
+                          focusNode: _bodyFocusNode,
+                          decoration: const InputDecoration(
+                            labelText: '正文',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.multiline,
+                          maxLines: null,
+                          expands: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Center(
+                  child: _emailSent
+                      ? ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 260),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
+                                child: Text('已发送邮件',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                    )),
+                              ),
+                              Expanded(
+                                child: Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                        0,
+                                        max(130 - 48.0 * _sent.length, 0),
+                                        0,
+                                        max(130 - 48.0 * _sent.length, 0)),
+                                    child: ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: _sent.length,
+                                      itemBuilder: (context, index) {
+                                        final email = _sent[index];
+                                        return ListTile(
+                                          title: Text(
+                                              email[1] != ""
+                                                  ? email[1]
+                                                  : '[无主题]',
+                                              style: email[1] != ""
+                                                  ? const TextStyle()
+                                                  : const TextStyle(
+                                                      color: Colors.grey),
+                                              textAlign: TextAlign.center),
+                                          subtitle: Text('To ${email[0]}',
+                                              textAlign: TextAlign.center),
+                                        );
+                                      },
+                                    )),
+                              ),
+                            ],
+                          ),
+                        )
+                      : const Padding(
+                          padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
+                          child: Text('还未发送过邮件',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontFamily: 'Consolas',
+                              )),
+                        ),
+                )),
     );
   }
 }

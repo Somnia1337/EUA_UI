@@ -17,6 +17,6 @@ prost = "0.12.3"
 wasm-bindgen = "0.2.91"
 tokio_with_wasm = "0.4.3"
 sample_crate = { path = "../sample_crate" }
-imap = "2.4.1"
+imap = "3.0.0-alpha.14"
 lettre = "0.11.7"
 native-tls = "0.2.11"

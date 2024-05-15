@@ -2,6 +2,9 @@ syntax = "proto3";
 package user;
 
 // [RINF:DART-SIGNAL]
+// 0: Login
+// 1: Logout
+// 2: Send
 message Action {
   int32 action = 1;
 }

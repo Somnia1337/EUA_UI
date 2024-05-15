@@ -3,10 +3,29 @@ import './messages/generated.dart';
 import 'package:eua_ui/compose.dart';
 import 'package:eua_ui/inbox.dart';
 import 'package:eua_ui/settings.dart';
+import 'package:provider/provider.dart';
 
 void main() async {
   await initializeRust();
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LoginStatusNotifier()),
+      ],
+      child: MyApp(),
+    ),
+  );
+}
+
+class LoginStatusNotifier extends ChangeNotifier {
+  bool _isLoggedIn = false;
+
+  bool get isLoggedIn => _isLoggedIn;
+
+  void updateLoginStatus(bool isLoggedIn) {
+    _isLoggedIn = isLoggedIn;
+    notifyListeners();
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -61,6 +80,7 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       _isLoggedIn = isLoggedIn;
     });
+    if (!_isLoggedIn) {}
   }
 
   void _toggleDarkMode(bool isOn) {
@@ -157,7 +177,11 @@ class _MyAppState extends State<MyApp> {
                   const ComposePage(),
                   const InboxPage(),
                   SettingsPage(
-                    onLoginStatusChanged: _loginStatusChanged,
+                    onLoginStatusChanged: (isLoggedIn) {
+                      Provider.of<LoginStatusNotifier>(context, listen: false)
+                          .updateLoginStatus(isLoggedIn);
+                      _loginStatusChanged(isLoggedIn);
+                    },
                     onToggleDarkMode: _toggleDarkMode,
                   ),
                 ],
