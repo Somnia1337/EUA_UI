@@ -80,6 +80,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<bool> login() async {
+    if (_emailAddrController.text == "" && _passwordController.text == "") {
+      _showSnackBar('❗"邮箱"和"授权码"是必填字段！', red, const Duration(seconds: 3));
+      return Future.value(false);
+    }
     if (_emailAddrController.text == "") {
       _showSnackBar('❗"邮箱"是必填字段！', red, const Duration(seconds: 3));
       return Future.value(false);
@@ -274,9 +278,17 @@ class _SettingsPageState extends State<SettingsPage> {
                           constraints: const BoxConstraints(maxWidth: 250),
                           child: TextFormField(
                             controller: _emailAddrController,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               labelText: '邮箱',
-                              border: UnderlineInputBorder(),
+                              border: const UnderlineInputBorder(),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.clear_rounded),
+                                splashRadius: 20,
+                                onPressed: () {
+                                  _emailAddrController.clear();
+                                  _passwordController.clear();
+                                },
+                              ),
                             ),
                             keyboardType: TextInputType.emailAddress,
                             onFieldSubmitted: (value) {
@@ -299,6 +311,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   icon: Icon(_isPasswordVisible
                                       ? Icons.visibility
                                       : Icons.visibility_off),
+                                  splashRadius: 20,
                                   onPressed: () {
                                     setState(() {
                                       _isPasswordVisible = !_isPasswordVisible;

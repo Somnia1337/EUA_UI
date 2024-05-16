@@ -20,3 +20,4 @@ sample_crate = { path = "../sample_crate" }
 imap = "3.0.0-alpha.14"
 lettre = "0.11.7"
 native-tls = "0.2.11"
+mailparse = "0.15.0"

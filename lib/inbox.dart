@@ -216,7 +216,7 @@ class _MailboxPageState extends State<MailboxPage> {
                                             return ListTile(
                                               title: Text(email.subject),
                                               subtitle: Text(
-                                                  "${email.sender} ${email.date}"),
+                                                  "From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}"),
                                             );
                                           },
                                         )),

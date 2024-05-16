@@ -161,6 +161,12 @@ dependencies = [
 
 [[package]]
 name = "base64"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
+
+[[package]]
+name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
@@ -266,6 +272,16 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "charset"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e9079d1a12a2cc2bffb5db039c43661836ead4082120d5844f02555aca2d46"
+dependencies = [
+ "base64 0.13.1",
+ "encoding_rs",
+]
 
 [[package]]
 name = "chrono"
@@ -374,6 +390,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "data-encoding"
+version = "2.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -396,7 +418,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60d1d33cdaede7e24091f039632eb5d3c7469fe5b066a985281a34fc70fa317f"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "memchr",
 ]
 
@@ -405,6 +427,15 @@ name = "email_address"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2153bd83ebc09db15bcbdc3e2194d901804952e3dc96967e1cd3b0c5c32d112"
+
+[[package]]
+name = "encoding_rs"
+version = "0.8.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b45de904aa0b010bce2ab45264d0631681847fa7b6f2eaa7dab7619943bc4f59"
+dependencies = [
+ "cfg-if",
+]
 
 [[package]]
 name = "equivalent"
@@ -753,6 +784,7 @@ version = "0.4.1"
 dependencies = [
  "imap",
  "lettre",
+ "mailparse",
  "native-tls",
  "prost",
  "rinf",
@@ -872,7 +904,7 @@ version = "3.0.0-alpha.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b648e4cc1fe054779cf79ff8c67cba70dd837bc1d67c099eef49a96ba0c6b64"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bufstream",
  "chrono",
  "imap-proto",
@@ -982,7 +1014,7 @@ version = "0.11.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a62049a808f1c4e2356a2a380bd5f2aca3b011b0b482cf3b914ba1731426969"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "chumsky",
  "email-encoding",
  "email_address",
@@ -1067,6 +1099,17 @@ dependencies = [
  "whoami",
  "winreg 0.11.0",
  "wmi",
+]
+
+[[package]]
+name = "mailparse"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3da03d5980411a724e8aaf7b61a7b5e386ec55a7fb49ee3d0ff79efc7e5e7c7e"
+dependencies = [
+ "charset",
+ "data-encoding",
+ "quoted_printable",
 ]
 
 [[package]]
@@ -1689,7 +1732,7 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "566cafdd92868e0939d3fb961bd0dc25fcfaaed179291093b3d43e6b3150ea10"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "futures-core",
  "futures-util",
@@ -2310,7 +2353,7 @@ version = "2.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d11a831e3c0b56e438a28308e7c810799e3c118417f342d30ecec080105395cd"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "log",
  "once_cell",
  "rustls",

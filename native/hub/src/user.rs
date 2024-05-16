@@ -8,6 +8,8 @@ use lettre::{
     transport::smtp::authentication::Credentials,
     Address, Message, SmtpTransport, Transport,
 };
+use mailparse::*;
+
 use rinf::debug_print;
 
 pub async fn main_logic() {
@@ -72,7 +74,7 @@ pub async fn main_logic() {
                     }
                 }
 
-                if !user.is_none() && !smtp_cli.is_none() && !imap_cli.is_none() {
+                if user.is_some() && smtp_cli.is_some() && imap_cli.is_some() {
                     RustResult {
                         result: true,
                         info: String::new(),
@@ -112,7 +114,7 @@ pub async fn main_logic() {
                     let mailboxes = user
                         .as_ref()
                         .unwrap()
-                        .fetch_mailboxes(&mut imap_cli.as_mut().unwrap());
+                        .fetch_mailboxes(imap_cli.as_mut().unwrap());
                     MailboxesFetch { mailboxes }.send_signal_to_dart();
                 }
             }
@@ -120,7 +122,7 @@ pub async fn main_logic() {
                 if user.as_ref().is_some() && imap_cli.as_ref().is_some() {
                     if let Some(mailbox_selection) = mailbox_selection_listener.recv().await {
                         let messages = user.as_ref().unwrap().fetch_messages(
-                            &mut imap_cli.as_mut().unwrap(),
+                            imap_cli.as_mut().unwrap(),
                             mailbox_selection.message.mailbox,
                         );
                         MessagesFetch { emails: messages }.send_signal_to_dart();
@@ -181,11 +183,11 @@ impl User {
     fn connect_imap(&self) -> imap::error::Result<Session<Connection>> {
         match imap::ClientBuilder::new(self.imap_domain.as_str(), 993).connect() {
             Ok(session) => match session.login(&self.email_addr, &self.password) {
-                Ok(session) => return Ok(session),
-                Err(e) => return Err(e.0),
+                Ok(session) => Ok(session),
+                Err(e) => Err(e.0),
             },
-            Err(e) => return Err(e),
-        };
+            Err(e) => Err(e),
+        }
     }
 
     pub fn send(&self, smtp_cli: &SmtpTransport, email_proto: EmailProto) {
@@ -241,8 +243,8 @@ impl User {
         mailbox: String,
     ) -> Vec<EmailFetch> {
         let mut messages = vec![];
-
         imap_cli.select(mailbox).unwrap();
+
         // Fetch all messages in the mailbox and print their "Subject: " line
         let mut i = 1;
         loop {
@@ -250,7 +252,7 @@ impl User {
             if message.is_empty() {
                 break;
             }
-            let body = message
+            let message_body = message
                 .iter()
                 .flat_map(|m| {
                     str::from_utf8(m.body().expect("message did not have a body!"))
@@ -259,49 +261,50 @@ impl User {
                         .map(String::from)
                 })
                 .map(|s| s.to_string())
-                .into_iter()
                 .collect::<Vec<_>>();
 
             let mut is_body = false;
             let mut is_after_date = false;
-            let mut sender = String::new();
-            let mut subject = String::new();
-            let mut date = String::new();
-            let mut real_body = String::new();
-            for line in body.iter() {
+            let mut from = String::from("[未知发送者]");
+            let mut to = String::from("[未知收件人]");
+            let mut subject = String::from("[无主题]");
+            let mut date = String::from("[未知日期]");
+            let mut body = String::from("[无正文]");
+            for line in message_body.iter() {
                 // Real body starts at line "From: "
                 if line.starts_with("From: ") {
                     is_body = true;
                 }
 
-                if line.starts_with("Date: ") {
-                    date = line.clone();
+                // Lines after "Date: " are "body" part
+                if let Some(_date) = line.strip_prefix("Date: ") {
+                    date = _date.to_string();
                     is_after_date = true;
                     continue;
                 }
-
                 if is_after_date {
-                    real_body += &line;
+                    body += line;
                     continue;
                 }
 
-                // Ignore "Content" & "To" headers
+                // Ignore "Content" header
                 if is_body {
-                    if line.starts_with("From: ") {
-                        sender = line[6..].to_string();
-                    } else if line.starts_with("Subject: ") {
-                        subject = line[9..].to_string();
-                    } else if line.starts_with("Date: ") {
-                        date = line[6..].to_string();
+                    if let Some(_from) = line.strip_prefix("From: ") {
+                        from = _from.to_string();
+                    } else if let Some(_to) = line.strip_prefix("To: ") {
+                        to = _to.to_string();
+                    } else if let Some(_subject) = line.strip_prefix("Subject: ") {
+                        subject = _subject.to_string();
                     }
                 }
             }
 
             messages.push(EmailFetch {
-                sender,
+                from,
+                to,
                 subject,
                 date,
-                body: real_body,
+                body,
             });
             i += 1;
         }
