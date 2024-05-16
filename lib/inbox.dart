@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:eua_ui/messages/user.pbserver.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
+import 'package:eua_ui/main.dart';
+import 'package:provider/provider.dart';
 
 class InboxPage extends StatefulWidget {
   const InboxPage({super.key});
@@ -14,6 +16,7 @@ class _InboxPageState extends State<InboxPage> {
 
   int _selectedMailbox = 0;
 
+  bool _isFetchingMailboxes = false;
   bool _isMailboxesFetched = false;
 
   List<String> _mailboxes = [];
@@ -21,7 +24,25 @@ class _InboxPageState extends State<InboxPage> {
   @override
   void initState() {
     super.initState();
-    _fetchMailboxes();
+    final loginStatusNotifier =
+        Provider.of<LoginStatusNotifier>(context, listen: false);
+    loginStatusNotifier.addListener(_handleLoginStatusChange);
+  }
+
+  void _handleLoginStatusChange() {
+    final loginStatusNotifier =
+        Provider.of<LoginStatusNotifier>(context, listen: false);
+    if (!loginStatusNotifier.isLoggedIn) {
+      _reset();
+    }
+  }
+
+  void _reset() {
+    _selectedMailbox = 0;
+    _mailboxes = [];
+    setState(() {
+      _isMailboxesFetched = false;
+    });
   }
 
   void _onItemTapped(int index) {
@@ -31,25 +52,46 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _fetchMailboxes() async {
+    setState(() {
+      _isFetchingMailboxes = true;
+    });
     pb.Action(action: 3).sendSignalToRust();
     MailboxesFetch mailboxes = (await _mailboxesFetchListener.first).message;
     _mailboxes = mailboxes.mailboxes;
     setState(() {
+      _isFetchingMailboxes = false;
       _isMailboxesFetched = true;
     });
+  }
+
+  List<IconData> _getMailboxIcon(String mailbox) {
+    mailbox = mailbox.toLowerCase();
+    if (mailbox.contains("draft")) {
+      return [Icons.drafts_outlined, Icons.drafts];
+    }
+    if (mailbox.contains("delete")) {
+      return [Icons.delete_outline, Icons.delete];
+    }
+    if (mailbox.contains("junk")) {
+      return [Icons.close_outlined, Icons.close];
+    }
+    if (mailbox.contains("send") || mailbox.contains("sent")) {
+      return [Icons.send_outlined, Icons.send];
+    }
+    return [Icons.inbox_outlined, Icons.inbox];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: !_isMailboxesFetched
-          ? FloatingActionButton(
+      floatingActionButton: _isFetchingMailboxes || _isMailboxesFetched
+          ? null
+          : FloatingActionButton(
               onPressed: _fetchMailboxes,
               heroTag: 'inboxPageFloatingActionButton',
               tooltip: '收取收件箱',
               child: const Icon(Icons.move_to_inbox_outlined),
-            )
-          : null,
+            ),
       body: _isMailboxesFetched
           ? Row(
               children: [
@@ -59,8 +101,8 @@ class _InboxPageState extends State<InboxPage> {
                   labelType: NavigationRailLabelType.all,
                   destinations: _mailboxes.map((mailbox) {
                     return NavigationRailDestination(
-                      icon: const Icon(Icons.inbox_outlined),
-                      selectedIcon: const Icon(Icons.inbox),
+                      icon: Icon(_getMailboxIcon(mailbox)[0]),
+                      selectedIcon: Icon(_getMailboxIcon(mailbox)[1]),
                       label: Text(mailbox),
                     );
                   }).toList(),
@@ -77,10 +119,10 @@ class _InboxPageState extends State<InboxPage> {
                 ),
               ],
             )
-          : const Center(
-              child: Text('请手动收取收件箱',
-                  style: TextStyle(
-                    fontSize: 18,
+          : Center(
+              child: Text(_isFetchingMailboxes ? '收取中...' : '请手动收取收件箱',
+                  style: const TextStyle(
+                    fontSize: 20,
                   )),
             ),
     );
@@ -93,26 +135,39 @@ class MailboxPage extends StatefulWidget {
   const MailboxPage({required this.mailbox, super.key});
 
   @override
-  State<MailboxPage> createState() => _MailboxPageState(mailbox: mailbox);
+  State<MailboxPage> createState() => _MailboxPageState();
 }
 
 class _MailboxPageState extends State<MailboxPage> {
-  _MailboxPageState({required this.mailbox});
-
   final _messagesFetchListener = MessagesFetch.rustSignalStream;
-  final String mailbox;
+  late String mailbox;
 
   bool _triedFetching = false;
   bool _existsMessage = false;
+  bool _isFetching = false;
 
   List<EmailFetch> messages = [];
 
+  final _style = const TextStyle(
+    fontSize: 20,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    mailbox = widget.mailbox;
+  }
+
   void _fetchMessages() async {
+    setState(() {
+      _isFetching = true;
+    });
     pb.Action(action: 4).sendSignalToRust();
     MailboxSelection(mailbox: mailbox).sendSignalToRust();
     MessagesFetch messagesFetch = (await _messagesFetchListener.first).message;
     messages = messagesFetch.emails;
     setState(() {
+      _isFetching = false;
       _triedFetching = true;
       _existsMessage = messages.isNotEmpty;
     });
@@ -123,12 +178,17 @@ class _MailboxPageState extends State<MailboxPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('收件箱：$mailbox'),
+        backgroundColor: Color.fromRGBO(MyApp.seedColor.red,
+            MyApp.seedColor.green, MyApp.seedColor.blue, 0.8),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _fetchMessages,
-        tooltip: _triedFetching ? '刷新' : '下载',
-        child: Icon(_triedFetching ? Icons.refresh : Icons.download),
-      ),
+      floatingActionButton: _isFetching
+          ? null
+          : FloatingActionButton(
+              autofocus: true,
+              onPressed: _fetchMessages,
+              tooltip: _triedFetching ? '刷新' : '下载邮件',
+              child: Icon(_triedFetching ? Icons.refresh : Icons.download),
+            ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -137,42 +197,37 @@ class _MailboxPageState extends State<MailboxPage> {
               constraints: const BoxConstraints(maxHeight: 300),
               child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: _triedFetching
-                      ? _existsMessage
-                          ? [
-                              const Text('收到邮件',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                  )),
-                              Expanded(
-                                child: Padding(
-                                    padding: const EdgeInsets.all(20),
-                                    child: ListView.builder(
-                                      shrinkWrap: true,
-                                      itemCount: messages.length,
-                                      itemBuilder: (context, index) {
-                                        final email = messages[index];
-                                        return ListTile(
-                                          title: Text(email.subject),
-                                          subtitle: Text(
-                                              "${email.sender} ${email.date}"),
-                                        );
-                                      },
-                                    )),
-                              ),
-                            ]
+                  children: _isFetching
+                      ? [
+                          Text('下载中...', style: _style),
+                        ]
+                      : _triedFetching
+                          ? _existsMessage
+                              ? [
+                                  Text('邮件列表', style: _style),
+                                  Expanded(
+                                    child: Padding(
+                                        padding: const EdgeInsets.all(20),
+                                        child: ListView.builder(
+                                          shrinkWrap: true,
+                                          itemCount: messages.length,
+                                          itemBuilder: (context, index) {
+                                            final email = messages[index];
+                                            return ListTile(
+                                              title: Text(email.subject),
+                                              subtitle: Text(
+                                                  "${email.sender} ${email.date}"),
+                                            );
+                                          },
+                                        )),
+                                  ),
+                                ]
+                              : [
+                                  Text('无邮件，可刷新重试', style: _style),
+                                ]
                           : [
-                              const Text('无邮件，可刷新重试',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                  )),
-                            ]
-                      : [
-                          const Text('请手动收取邮件',
-                              style: TextStyle(
-                                fontSize: 20,
-                              )),
-                        ]),
+                              Text('请手动下载邮件', style: _style),
+                            ]),
             )
           ],
         ),

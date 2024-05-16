@@ -29,6 +29,8 @@ class LoginStatusNotifier extends ChangeNotifier {
 }
 
 class MyApp extends StatefulWidget {
+  static const seedColor = Color.fromRGBO(56, 132, 255, 1);
+
   const MyApp({super.key});
 
   @override
@@ -45,8 +47,10 @@ class _MyAppState extends State<MyApp> {
 
   late final ThemeData _lightTheme = ThemeData(
     brightness: Brightness.light,
-    colorScheme:
-        ColorScheme.fromSeed(seedColor: _seedColor, primary: _seedColor),
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: _seedColor,
+      primary: _seedColor,
+    ),
     useMaterial3: false,
   );
 

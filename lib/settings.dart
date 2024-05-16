@@ -81,11 +81,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<bool> login() async {
     if (_emailAddrController.text == "") {
-      _showSnackBar('❗"邮箱"是必填字段！', red, const Duration(seconds: 2));
+      _showSnackBar('❗"邮箱"是必填字段！', red, const Duration(seconds: 3));
       return Future.value(false);
     }
     if (_passwordController.text == "") {
-      _showSnackBar('❗"授权码"是必填字段！', red, const Duration(seconds: 2));
+      _showSnackBar('❗"授权码"是必填字段！', red, const Duration(seconds: 3));
       return Future.value(false);
     }
 
@@ -98,10 +98,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
     RustResult loginResult = (await _rustResultListener.first).message;
     if (loginResult.result) {
-      _showSnackBar('🤗登录成功', green, const Duration(seconds: 2));
+      _showSnackBar('🤗登录成功', green, const Duration(seconds: 1));
       return true;
     }
-    _showSnackBar('❌登录失败：${loginResult.info}', red, const Duration(seconds: 5));
+    _showSnackBar('❌登录失败：${loginResult.info}', red, const Duration(seconds: 3));
     return false;
   }
 
@@ -109,7 +109,7 @@ class _SettingsPageState extends State<SettingsPage> {
     pb.Action(action: 1).sendSignalToRust();
     RustResult logoutResult = (await _rustResultListener.first).message;
     if (logoutResult.result) {
-      _showSnackBar('😶‍🌫️已退出登录', green, const Duration(seconds: 2));
+      _showSnackBar('😶‍🌫️已退出登录', green, const Duration(seconds: 1));
       return true;
     }
     return false;
@@ -119,6 +119,7 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
+        final localContext = context;
         return AlertDialog(
           title: const Text("提示"),
           content: const Text("确定要退出登录吗？"),
@@ -139,7 +140,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       widget.onLoginStatusChanged!(false);
                     }
                   }
-                  Navigator.of(context).pop();
+                  if (!localContext.mounted) return;
+                  Navigator.of(localContext).pop();
                 },
                 child: const Text("确定")),
           ],
@@ -186,7 +188,10 @@ class _SettingsPageState extends State<SettingsPage> {
     final toggleDarkModeButton = SizedBox(
       width: 250,
       child: SwitchListTile(
-        title: const Text('深色模式', style: TextStyle(fontSize: 18),),
+        title: const Text(
+          '深色模式',
+          style: TextStyle(fontSize: 18),
+        ),
         secondary: Icon(
           currentBrightness == Brightness.light
               ? Icons.wb_sunny_outlined
@@ -213,7 +218,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         Padding(
           padding: EdgeInsets.all(0),
-          child: Text('v0.3.2',
+          child: Text('v0.4.1',
               style: TextStyle(
                 fontSize: 16,
                 fontFamily: 'Consolas',

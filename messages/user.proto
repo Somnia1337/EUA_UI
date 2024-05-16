@@ -49,7 +49,6 @@ message MessagesFetch {
   repeated EmailFetch emails = 1;
 }
 
-// [RINF:RUST-SIGNAL]
 message EmailFetch {
   string sender = 1;
   string subject = 2;
