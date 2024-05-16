@@ -20,6 +20,9 @@ class _ComposePageState extends State<ComposePage> {
   final _subjectFocusNode = FocusNode();
   final _bodyFocusNode = FocusNode();
 
+  final green = const Color.fromRGBO(66, 184, 131, 0.8);
+  final red = const Color.fromRGBO(233, 95, 89, 0.8);
+
   bool _isComposing = false;
   bool _emailSent = false;
 
@@ -84,14 +87,18 @@ class _ComposePageState extends State<ComposePage> {
       _sent.add([_recipientController.text, _subjectController.text]);
       _clearContent();
     } else {
-      _showSnackBar('❌邮件发送失败：${sendResult.info}', const Duration(seconds: 5));
+      _showSnackBar(
+          '❌邮件发送失败：${sendResult.info}', red, const Duration(seconds: 5));
     }
   }
 
-  void _showSnackBar(String message, Duration duration) {
+  void _showSnackBar(String message, Color color, Duration duration) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(
+          message,
+          style: TextStyle(fontSize: 16, color: color),
+        ),
         duration: duration,
       ),
     );
@@ -300,12 +307,10 @@ class _ComposePageState extends State<ComposePage> {
                             ],
                           ),
                         )
-                      : const Padding(
-                          padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
+                      : const Center(
                           child: Text('还未发送过邮件',
                               style: TextStyle(
                                 fontSize: 18,
-                                fontFamily: 'Consolas',
                               )),
                         ),
                 )),

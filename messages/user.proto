@@ -1,10 +1,14 @@
 syntax = "proto3";
 package user;
 
+// * Dart -> Rust
+
 // [RINF:DART-SIGNAL]
 // 0: Login
 // 1: Logout
 // 2: Send
+// 3: Fetch: mailboxes
+// 4: Fetch: email
 message Action {
   int32 action = 1;
 }
@@ -22,8 +26,33 @@ message EmailProto {
   string body = 3;
 }
 
+// [RINF:DART-SIGNAL]
+message MailboxSelection {
+  string mailbox = 1;
+}
+
+// * Rust -> Dart
+
 // [RINF:RUST-SIGNAL]
 message RustResult {
   bool result = 1;
   string info = 2;
+}
+
+// [RINF:RUST-SIGNAL]
+message MailboxesFetch {
+  repeated string mailboxes = 1;
+}
+
+// [RINF:RUST-SIGNAL]
+message MessagesFetch {
+  repeated EmailFetch emails = 1;
+}
+
+// [RINF:RUST-SIGNAL]
+message EmailFetch {
+  string sender = 1;
+  string subject = 2;
+  string date = 3;
+  string body = 4;
 }

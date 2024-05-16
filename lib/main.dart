@@ -44,7 +44,9 @@ class _MyAppState extends State<MyApp> {
   final _seedColor = const Color.fromRGBO(56, 132, 255, 1);
 
   late final ThemeData _lightTheme = ThemeData(
-    colorScheme: ColorScheme.fromSeed(seedColor: _seedColor),
+    brightness: Brightness.light,
+    colorScheme:
+        ColorScheme.fromSeed(seedColor: _seedColor, primary: _seedColor),
     useMaterial3: false,
   );
 
@@ -142,19 +144,29 @@ class _MyAppState extends State<MyApp> {
                     Icons.email,
                     size: 50,
                   ),
-                  label: const Text('写信'),
+                  label: const Text(
+                    '写邮件',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   disabled: !_isLoggedIn,
                 ),
                 NavigationRailDestination(
                   icon: const Icon(
-                    Icons.inbox_outlined,
+                    Icons.markunread_mailbox_outlined,
                     size: 30,
                   ),
                   selectedIcon: const Icon(
-                    Icons.inbox,
+                    Icons.markunread_mailbox,
                     size: 50,
                   ),
-                  label: const Text('收信'),
+                  label: const Text(
+                    '收件箱',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   disabled: !_isLoggedIn,
                 ),
                 const NavigationRailDestination(
@@ -166,7 +178,13 @@ class _MyAppState extends State<MyApp> {
                     Icons.settings,
                     size: 50,
                   ),
-                  label: Text('设置'),
+                  indicatorShape: LinearBorder.none,
+                  label: Text(
+                    '设置',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),

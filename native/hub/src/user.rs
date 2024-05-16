@@ -1,6 +1,6 @@
 use crate::messages::user::*;
 
-use std::error::Error;
+use std::{error::Error, str};
 
 use imap::{self, Connection, Session};
 use lettre::{
@@ -18,6 +18,7 @@ pub async fn main_logic() {
     let mut action_listener = Action::get_dart_signal_receiver();
     let mut user_proto_listener = UserProto::get_dart_signal_receiver();
     let mut email_proto_listener = EmailProto::get_dart_signal_receiver();
+    let mut mailbox_selection_listener = MailboxSelection::get_dart_signal_receiver();
 
     while let Some(dart_signal) = action_listener.recv().await {
         match dart_signal.message.action {
@@ -33,7 +34,7 @@ pub async fn main_logic() {
                     } else {
                         RustResult {
                             result: false,
-                            info: String::from("用户创建失败，请检查邮箱格式\n当前仅支持 qq.com | 163.com | 126.com | gmail.com"),
+                            info: String::from("用户创建失败，请检查邮箱格式\n当前仅支持 qq.com | 163.com | 126.com"),
                         }
                         .send_signal_to_dart();
                     }
@@ -82,8 +83,8 @@ pub async fn main_logic() {
             1 => {
                 user = None;
                 smtp_cli = None;
-                if let Some(ref mut cur_imap_cli) = imap_cli {
-                    match cur_imap_cli.logout() {
+                if imap_cli.is_some() {
+                    match imap_cli.as_mut().unwrap().logout() {
                         Ok(_) => {}
                         Err(e) => {
                             debug_print!("{:?}", e);
@@ -99,10 +100,30 @@ pub async fn main_logic() {
             }
             2 => {
                 if let Some(email_proto) = email_proto_listener.recv().await {
-                    if let Some(ref cur_user) = user {
-                        if let Some(ref cur_smtp_cli) = smtp_cli {
-                            cur_user.send(cur_smtp_cli, email_proto.message);
-                        }
+                    if user.as_ref().is_some() && smtp_cli.as_ref().is_some() {
+                        user.as_ref()
+                            .unwrap()
+                            .send(smtp_cli.as_ref().unwrap(), email_proto.message);
+                    }
+                }
+            }
+            3 => {
+                if user.as_ref().is_some() && imap_cli.as_ref().is_some() {
+                    let mailboxes = user
+                        .as_ref()
+                        .unwrap()
+                        .fetch_mailboxes(&mut imap_cli.as_mut().unwrap());
+                    MailboxesFetch { mailboxes }.send_signal_to_dart();
+                }
+            }
+            4 => {
+                if user.as_ref().is_some() && imap_cli.as_ref().is_some() {
+                    if let Some(mailbox_selection) = mailbox_selection_listener.recv().await {
+                        let messages = user.as_ref().unwrap().fetch_messages(
+                            &mut imap_cli.as_mut().unwrap(),
+                            mailbox_selection.message.mailbox,
+                        );
+                        MessagesFetch { emails: messages }.send_signal_to_dart();
                     }
                 }
             }
@@ -128,7 +149,7 @@ impl User {
         let password = user_proto.password;
         let domain = email.domain();
 
-        if !matches!(domain, "qq.com" | "163.com" | "126.com" | "gmail.com") {
+        if !matches!(domain, "qq.com" | "163.com" | "126.com") {
             return None;
         }
 
@@ -202,5 +223,89 @@ impl User {
             }
             .send_signal_to_dart(),
         };
+    }
+
+    pub fn fetch_mailboxes(&self, imap_cli: &mut Session<Connection>) -> Vec<String> {
+        imap_cli
+            .list(Some(""), Some("*"))
+            .unwrap()
+            .iter()
+            .filter(|&s| !s.name().contains('&'))
+            .map(|s| s.name().to_string())
+            .collect::<Vec<_>>()
+    }
+
+    fn fetch_messages(
+        &self,
+        imap_cli: &mut Session<Connection>,
+        mailbox: String,
+    ) -> Vec<EmailFetch> {
+        let mut messages = vec![];
+
+        imap_cli.select(mailbox).unwrap();
+        // Fetch all messages in the mailbox and print their "Subject: " line
+        let mut i = 1;
+        loop {
+            let message = imap_cli.fetch(i.to_string(), "RFC822").unwrap();
+            if message.is_empty() {
+                break;
+            }
+            let body = message
+                .iter()
+                .flat_map(|m| {
+                    str::from_utf8(m.body().expect("message did not have a body!"))
+                        .unwrap()
+                        .lines()
+                        .map(String::from)
+                })
+                .map(|s| s.to_string())
+                .into_iter()
+                .collect::<Vec<_>>();
+
+            let mut is_body = false;
+            let mut is_after_date = false;
+            let mut sender = String::new();
+            let mut subject = String::new();
+            let mut date = String::new();
+            let mut real_body = String::new();
+            for line in body.iter() {
+                // Real body starts at line "From: "
+                if line.starts_with("From: ") {
+                    is_body = true;
+                }
+
+                if line.starts_with("Date: ") {
+                    date = line.clone();
+                    is_after_date = true;
+                    continue;
+                }
+
+                if is_after_date {
+                    real_body += &line;
+                    continue;
+                }
+
+                // Ignore "Content" & "To" headers
+                if is_body {
+                    if line.starts_with("From: ") {
+                        sender = line[6..].to_string();
+                    } else if line.starts_with("Subject: ") {
+                        subject = line[9..].to_string();
+                    } else if line.starts_with("Date: ") {
+                        date = line[6..].to_string();
+                    }
+                }
+            }
+
+            messages.push(EmailFetch {
+                sender,
+                subject,
+                date,
+                body: real_body,
+            });
+            i += 1;
+        }
+
+        messages
     }
 }
