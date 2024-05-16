@@ -12,7 +12,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => LoginStatusNotifier()),
       ],
-      child: MyApp(),
+      child: const MyApp(),
     ),
   );
 }

@@ -78,11 +78,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<bool> login() async {
     if (_emailAddrController.text == "") {
-      _showSnackBar('❗"邮箱"是必填字段！', const Duration(seconds: 2));
+      _showSnackBar('❗"邮箱"是必填字段！', Colors.red, const Duration(seconds: 2));
       return Future.value(false);
     }
     if (_passwordController.text == "") {
-      _showSnackBar('❗"授权码"是必填字段！', const Duration(seconds: 2));
+      _showSnackBar('❗"授权码"是必填字段！', Colors.red, const Duration(seconds: 2));
       return Future.value(false);
     }
 
@@ -95,10 +95,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
     RustResult loginResult = (await _rustResultListener.first).message;
     if (loginResult.result) {
-      _showSnackBar('🤗登录成功', const Duration(seconds: 2));
+      _showSnackBar('🤗登录成功', Colors.green, const Duration(seconds: 2));
       return true;
     }
-    _showSnackBar('❌登录失败：${loginResult.info}', const Duration(seconds: 5));
+    _showSnackBar(
+        '❌登录失败：${loginResult.info}', Colors.red, const Duration(seconds: 5));
     return false;
   }
 
@@ -106,7 +107,7 @@ class _SettingsPageState extends State<SettingsPage> {
     pb.Action(action: 1).sendSignalToRust();
     RustResult logoutResult = (await _rustResultListener.first).message;
     if (logoutResult.result) {
-      _showSnackBar('😶‍🌫️已退出登录', const Duration(seconds: 2));
+      _showSnackBar('😶‍🌫️已退出登录', Colors.green, const Duration(seconds: 2));
       return true;
     }
     return false;
@@ -145,12 +146,12 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showSnackBar(String message, Duration duration) {
+  void _showSnackBar(String message, Color color, Duration duration) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           message,
-          style: const TextStyle(fontSize: 16),
+          style: TextStyle(color: color, fontSize: 16),
         ),
         duration: duration,
       ),
