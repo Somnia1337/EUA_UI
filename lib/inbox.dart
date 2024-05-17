@@ -1,10 +1,11 @@
-// todo: 收取附件: 对常见类型予以显示，对所有类型可选保存
-// todo: 不重复下载已经下载的邮件
+// TODO(Somnia1337): 收取附件: 对常见类型予以显示，对所有类型可选保存.
+// TODO(Somnia1337): 不重复下载已经下载的邮件
+// TODO(username): message.
 
-import 'package:flutter/material.dart';
-import 'package:eua_ui/messages/user.pbserver.dart';
-import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:eua_ui/main.dart';
+import 'package:eua_ui/messages/user.pb.dart' as pb;
+import 'package:eua_ui/messages/user.pbserver.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class InboxPage extends StatefulWidget {
@@ -27,9 +28,8 @@ class _InboxPageState extends State<InboxPage> {
   @override
   void initState() {
     super.initState();
-    final loginStatusNotifier =
-        Provider.of<LoginStatusNotifier>(context, listen: false);
-    loginStatusNotifier.addListener(_handleLoginStatusChange);
+    Provider.of<LoginStatusNotifier>(context, listen: false)
+        .addListener(_handleLoginStatusChange);
   }
 
   void _handleLoginStatusChange() {
@@ -54,12 +54,12 @@ class _InboxPageState extends State<InboxPage> {
     });
   }
 
-  void _fetchMailboxes() async {
+  Future<void> _fetchMailboxes() async {
     setState(() {
       _isFetchingMailboxes = true;
     });
     pb.Action(action: 3).sendSignalToRust();
-    MailboxesFetch mailboxes = (await _mailboxesFetchListener.first).message;
+    final mailboxes = (await _mailboxesFetchListener.first).message;
     _mailboxes = mailboxes.mailboxes;
     setState(() {
       _isFetchingMailboxes = false;
@@ -68,17 +68,17 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   List<IconData> _getMailboxIcon(String mailbox) {
-    mailbox = mailbox.toLowerCase();
-    if (mailbox.contains("draft")) {
+    final mailboxLowered = mailbox.toLowerCase();
+    if (mailboxLowered.contains('draft')) {
       return [Icons.drafts_outlined, Icons.drafts];
     }
-    if (mailbox.contains("delete")) {
+    if (mailboxLowered.contains('delete')) {
       return [Icons.delete_outline, Icons.delete];
     }
-    if (mailbox.contains("junk")) {
+    if (mailboxLowered.contains('junk')) {
       return [Icons.close_outlined, Icons.close];
     }
-    if (mailbox.contains("send") || mailbox.contains("sent")) {
+    if (mailboxLowered.contains('send') || mailboxLowered.contains('sent')) {
       return [Icons.send_outlined, Icons.send];
     }
     return [Icons.inbox_outlined, Icons.inbox];
@@ -123,19 +123,20 @@ class _InboxPageState extends State<InboxPage> {
               ],
             )
           : Center(
-              child: Text(_isFetchingMailboxes ? '收取中...' : '请手动收取收件箱',
-                  style: const TextStyle(
-                    fontSize: 20,
-                  )),
+              child: Text(
+                _isFetchingMailboxes ? '收取中...' : '请手动收取收件箱',
+                style: const TextStyle(
+                  fontSize: 20,
+                ),
+              ),
             ),
     );
   }
 }
 
 class MailboxPage extends StatefulWidget {
-  final String mailbox;
-
   const MailboxPage({required this.mailbox, super.key});
+  final String mailbox;
 
   @override
   State<MailboxPage> createState() => _MailboxPageState();
@@ -149,9 +150,9 @@ class _MailboxPageState extends State<MailboxPage> {
   bool _existsMessage = false;
   bool _isFetching = false;
   bool _isReadingDetail = false;
-  late EmailFetch _selectedEmail;
+  late Email _selectedEmail;
 
-  List<EmailFetch> messages = [];
+  List<Email> messages = [];
 
   final _style = const TextStyle(
     fontSize: 20,
@@ -163,13 +164,13 @@ class _MailboxPageState extends State<MailboxPage> {
     mailbox = widget.mailbox;
   }
 
-  void _fetchMessages() async {
+  Future<void> _fetchMessages() async {
     setState(() {
       _isFetching = true;
     });
     pb.Action(action: 4).sendSignalToRust();
     MailboxSelection(mailbox: mailbox).sendSignalToRust();
-    MessagesFetch messagesFetch = (await _messagesFetchListener.first).message;
+    final messagesFetch = (await _messagesFetchListener.first).message;
     messages = messagesFetch.emails;
     setState(() {
       _isFetching = false;
@@ -183,8 +184,12 @@ class _MailboxPageState extends State<MailboxPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('收件箱：$mailbox'),
-        backgroundColor: Color.fromRGBO(MyApp.seedColor.red,
-            MyApp.seedColor.green, MyApp.seedColor.blue, 0.8),
+        backgroundColor: Color.fromRGBO(
+          MyApp.seedColor.red,
+          MyApp.seedColor.green,
+          MyApp.seedColor.blue,
+          0.8,
+        ),
       ),
       floatingActionButton: _isFetching || _isReadingDetail
           ? null
@@ -208,52 +213,55 @@ class _MailboxPageState extends State<MailboxPage> {
                         });
                       },
                     ),
-                  )
+                  ),
                 ]
               : [
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 300, maxWidth: 800),
+                    constraints:
+                        const BoxConstraints(maxHeight: 300, maxWidth: 800),
                     child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: _isFetching
-                            ? [
-                                Text('下载中...', style: _style),
-                              ]
-                            : _triedFetching
-                                ? _existsMessage
-                                    ? [
-                                        Text('邮件列表', style: _style),
-                                        Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(20),
-                                            child: ListView.builder(
-                                              shrinkWrap: true,
-                                              itemCount: messages.length,
-                                              itemBuilder: (context, index) {
-                                                final email = messages[index];
-                                                return ListTile(
-                                                  title: Text(email.subject),
-                                                  subtitle: Text(
-                                                      "From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}"),
-                                                  onTap: () {
-                                                    setState(() {
-                                                      _selectedEmail = email;
-                                                      _isReadingDetail = true;
-                                                    });
-                                                  },
-                                                );
-                                              },
-                                            ),
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: _isFetching
+                          ? [
+                              Text('下载中...', style: _style),
+                            ]
+                          : _triedFetching
+                              ? _existsMessage
+                                  ? [
+                                      Text('邮件列表', style: _style),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(20),
+                                          child: ListView.builder(
+                                            shrinkWrap: true,
+                                            itemCount: messages.length,
+                                            itemBuilder: (context, index) {
+                                              final email = messages[index];
+                                              return ListTile(
+                                                title: Text(email.subject),
+                                                subtitle: Text(
+                                                  'From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}',
+                                                ),
+                                                onTap: () {
+                                                  setState(() {
+                                                    _selectedEmail = email;
+                                                    _isReadingDetail = true;
+                                                  });
+                                                },
+                                              );
+                                            },
                                           ),
                                         ),
-                                      ]
-                                    : [
-                                        Text('无邮件，可刷新重试', style: _style),
-                                      ]
-                                : [
-                                    Text('请手动下载邮件', style: _style),
-                                  ]),
-                  )
+                                      ),
+                                    ]
+                                  : [
+                                      Text('无邮件，可刷新重试', style: _style),
+                                    ]
+                              : [
+                                  Text('请手动下载邮件', style: _style),
+                                ],
+                    ),
+                  ),
                 ],
         ),
       ),
@@ -262,11 +270,13 @@ class _MailboxPageState extends State<MailboxPage> {
 }
 
 class EmailDetailScreen extends StatelessWidget {
-  final EmailFetch email;
+  const EmailDetailScreen({
+    super.key,
+    required this.email,
+    required this.onBack,
+  });
+  final Email email;
   final VoidCallback onBack;
-
-  const EmailDetailScreen(
-      {super.key, required this.email, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -279,20 +289,20 @@ class EmailDetailScreen extends StatelessWidget {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "From: ${email.from}",
+              'From: ${email.from}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Text(
-              "To: ${email.to}",
+              'To: ${email.to}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Text(
-              "Date: ${email.date}",
+              'Date: ${email.date}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),

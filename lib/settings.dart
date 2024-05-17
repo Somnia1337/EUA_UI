@@ -1,19 +1,18 @@
-import 'package:eua_ui/messages/user.pbserver.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
+import 'package:eua_ui/messages/user.pbserver.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SettingsPage extends StatefulWidget {
-  final void Function(bool)? onLoginStatusChanged;
-  final void Function(bool)? onLoggingProcessChanged;
-  final void Function(bool)? onToggleDarkMode;
-
   const SettingsPage({
     super.key,
     this.onLoginStatusChanged,
     this.onLoggingProcessChanged,
     this.onToggleDarkMode,
   });
+  final void Function(bool)? onLoginStatusChanged;
+  final void Function(bool)? onLoggingProcessChanged;
+  final void Function(bool)? onToggleDarkMode;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -29,7 +28,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final green = const Color.fromRGBO(66, 184, 131, 0.8);
   final red = const Color.fromRGBO(233, 95, 89, 0.8);
 
-  String _userEmailAddr = "";
+  String _userEmailAddr = '';
 
   bool _isLoggedIn = false;
   bool _isLoggingInOrOut = false;
@@ -43,7 +42,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
-  void _triggerLoginOrLogout() async {
+  Future<void> _triggerLoginOrLogout() async {
     setState(() {
       _isLoggingInOrOut = true;
     });
@@ -51,7 +50,7 @@ class _SettingsPageState extends State<SettingsPage> {
       widget.onLoggingProcessChanged!(true);
     }
     if (!_isLoggedIn) {
-      bool loginResult = await login();
+      final loginResult = await login();
       if (loginResult) {
         setState(() {
           _isLoggedIn = true;
@@ -80,27 +79,27 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<bool> login() async {
-    if (_emailAddrController.text == "" && _passwordController.text == "") {
+    if (_emailAddrController.text == '' && _passwordController.text == '') {
       _showSnackBar('❗"邮箱"和"授权码"是必填字段！', red, const Duration(seconds: 3));
       return Future.value(false);
     }
-    if (_emailAddrController.text == "") {
+    if (_emailAddrController.text == '') {
       _showSnackBar('❗"邮箱"是必填字段！', red, const Duration(seconds: 3));
       return Future.value(false);
     }
-    if (_passwordController.text == "") {
+    if (_passwordController.text == '') {
       _showSnackBar('❗"授权码"是必填字段！', red, const Duration(seconds: 3));
       return Future.value(false);
     }
 
     pb.Action(action: 0).sendSignalToRust();
     UserProto(
-            emailAddr: _emailAddrController.text,
-            password: _passwordController.text)
-        .sendSignalToRust();
+      emailAddr: _emailAddrController.text,
+      password: _passwordController.text,
+    ).sendSignalToRust();
     _userEmailAddr = _emailAddrController.text;
 
-    RustResult loginResult = (await _rustResultListener.first).message;
+    final loginResult = (await _rustResultListener.first).message;
     if (loginResult.result) {
       _showSnackBar('🤗登录成功', green, const Duration(seconds: 1));
       return true;
@@ -111,7 +110,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<bool> logout() async {
     pb.Action(action: 1).sendSignalToRust();
-    RustResult logoutResult = (await _rustResultListener.first).message;
+    final logoutResult = (await _rustResultListener.first).message;
     if (logoutResult.result) {
       _showSnackBar('😶‍🌫️已退出登录', green, const Duration(seconds: 1));
       return true;
@@ -120,34 +119,37 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _logoutDialog(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         final localContext = context;
         return AlertDialog(
-          title: const Text("提示"),
-          content: const Text("确定要退出登录吗？"),
+          title: const Text('提示'),
+          content: const Text('确定要退出登录吗？'),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text("取消"),
+              child: const Text('取消'),
             ),
             TextButton(
-                onPressed: () async {
-                  if (await logout()) {
-                    setState(() {
-                      _isLoggedIn = false;
-                    });
-                    if (widget.onLoginStatusChanged != null) {
-                      widget.onLoginStatusChanged!(false);
-                    }
+              onPressed: () async {
+                if (await logout()) {
+                  setState(() {
+                    _isLoggedIn = false;
+                  });
+                  if (widget.onLoginStatusChanged != null) {
+                    widget.onLoginStatusChanged!(false);
                   }
-                  if (!localContext.mounted) return;
-                  Navigator.of(localContext).pop();
-                },
-                child: const Text("确定")),
+                }
+                if (!localContext.mounted) {
+                  return;
+                }
+                Navigator.of(localContext).pop();
+              },
+              child: const Text('确定'),
+            ),
           ],
         );
       },
@@ -160,21 +162,24 @@ class _SettingsPageState extends State<SettingsPage> {
         content: Text(
           message,
           style: TextStyle(
-              fontSize: 18, color: color, fontWeight: FontWeight.bold),
+            fontSize: 18,
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         duration: duration,
       ),
     );
   }
 
-  void _launchUrl() async {
+  Future<void> _launchUrl() async {
     final url = Uri.parse('https://github.com/Somnia1337/EUA_UI');
     await launchUrl(url);
   }
 
   @override
   Widget build(BuildContext context) {
-    Brightness currentBrightness = Theme.of(context).brightness;
+    final currentBrightness = Theme.of(context).brightness;
 
     const sizedBoxBig = SizedBox(height: 20);
     const sizedBoxSmall = SizedBox(height: 12);
@@ -201,7 +206,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ? Icons.wb_sunny_outlined
               : Icons.nightlight_round_outlined,
         ),
-        value: (currentBrightness == Brightness.dark),
+        value: currentBrightness == Brightness.dark,
         onChanged: (value) {
           if (widget.onToggleDarkMode != null) {
             widget.onToggleDarkMode!(value);
@@ -214,19 +219,23 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
-          child: Text('卢剑歌 2022141461145',
-              style: TextStyle(
-                fontSize: 16,
-                fontFamily: 'DingTalk',
-              )),
+          child: Text(
+            '卢剑歌 2022141461145',
+            style: TextStyle(
+              fontSize: 16,
+              fontFamily: 'DingTalk',
+            ),
+          ),
         ),
         Padding(
-          padding: EdgeInsets.all(0),
-          child: Text('v0.4.3',
-              style: TextStyle(
-                fontSize: 16,
-                fontFamily: 'Consolas',
-              )),
+          padding: EdgeInsets.zero,
+          child: Text(
+            'v0.4.3',
+            style: TextStyle(
+              fontSize: 16,
+              fontFamily: 'Consolas',
+            ),
+          ),
         ),
       ],
     );
@@ -249,12 +258,11 @@ class _SettingsPageState extends State<SettingsPage> {
           children: <Widget>[
             _isLoggedIn
                 ? Padding(
-                    padding: const EdgeInsets.all(0),
+                    padding: EdgeInsets.zero,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         Padding(
-                          padding: const EdgeInsets.all(0),
+                          padding: EdgeInsets.zero,
                           child:
                               Text('欢迎 👋 $_userEmailAddr', style: textStyle),
                         ),
@@ -270,9 +278,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   )
                 : Padding(
-                    padding: const EdgeInsets.all(0),
+                    padding: EdgeInsets.zero,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 250),
@@ -301,27 +308,28 @@ class _SettingsPageState extends State<SettingsPage> {
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 250),
                           child: TextFormField(
-                              controller: _passwordController,
-                              obscureText: !_isPasswordVisible,
-                              focusNode: _passwordFocusNode,
-                              decoration: InputDecoration(
-                                labelText: '授权码 (不是邮箱密码!!)',
-                                border: const UnderlineInputBorder(),
-                                suffixIcon: IconButton(
-                                  icon: Icon(_isPasswordVisible
+                            controller: _passwordController,
+                            obscureText: !_isPasswordVisible,
+                            focusNode: _passwordFocusNode,
+                            decoration: InputDecoration(
+                              labelText: '授权码 (不是邮箱密码!!)',
+                              border: const UnderlineInputBorder(),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _isPasswordVisible
                                       ? Icons.visibility
-                                      : Icons.visibility_off),
-                                  splashRadius: 20,
-                                  onPressed: () {
-                                    setState(() {
-                                      _isPasswordVisible = !_isPasswordVisible;
-                                    });
-                                  },
+                                      : Icons.visibility_off,
                                 ),
+                                splashRadius: 20,
+                                onPressed: () {
+                                  setState(() {
+                                    _isPasswordVisible = !_isPasswordVisible;
+                                  });
+                                },
                               ),
-                              onEditingComplete: () {
-                                _triggerLoginOrLogout();
-                              }),
+                            ),
+                            onEditingComplete: _triggerLoginOrLogout,
+                          ),
                         ),
                         sizedBoxSmall,
                         logControlButton,

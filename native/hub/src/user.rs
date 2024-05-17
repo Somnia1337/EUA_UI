@@ -24,7 +24,7 @@ pub async fn main_logic() {
 
     let mut action_listener = Action::get_dart_signal_receiver();
     let mut user_proto_listener = UserProto::get_dart_signal_receiver();
-    let mut email_proto_listener = EmailProto::get_dart_signal_receiver();
+    let mut email_send_listener = EmailSend::get_dart_signal_receiver();
     let mut mailbox_selection_listener = MailboxSelection::get_dart_signal_receiver();
 
     while let Some(dart_signal) = action_listener.recv().await {
@@ -106,7 +106,7 @@ pub async fn main_logic() {
                 .send_signal_to_dart();
             }
             2 => {
-                if let Some(email_proto) = email_proto_listener.recv().await {
+                if let Some(email_proto) = email_send_listener.recv().await {
                     if user.as_ref().is_some() && smtp_cli.as_ref().is_some() {
                         user.as_ref()
                             .unwrap()
@@ -199,52 +199,48 @@ impl User {
         }
     }
 
-    pub fn send(&self, smtp_cli: &SmtpTransport, email_proto: EmailProto) {
-        let email = if email_proto.filepath.is_empty() {
+    pub fn send(&self, smtp_cli: &SmtpTransport, email_send: EmailSend) {
+        let email = if email_send.filepath.is_empty() {
             Message::builder()
                 .from(Mailbox::from(self.email_addr.clone()))
-                .to(Mailbox::from(
-                    match email_proto.recipient.parse::<Address>() {
-                        Ok(to) => to,
-                        Err(e) => {
-                            RustResult {
-                                result: false,
-                                info: e.to_string(),
-                            }
-                            .send_signal_to_dart();
-                            return;
+                .to(Mailbox::from(match email_send.to.parse::<Address>() {
+                    Ok(to) => to,
+                    Err(e) => {
+                        RustResult {
+                            result: false,
+                            info: e.to_string(),
                         }
-                    },
-                ))
-                .subject(email_proto.subject)
+                        .send_signal_to_dart();
+                        return;
+                    }
+                }))
+                .subject(email_send.subject)
                 .header(ContentType::TEXT_PLAIN)
-                .body(email_proto.body)
+                .body(email_send.body)
                 .unwrap()
         } else {
             let builder = Message::builder()
                 .from(Mailbox::from(self.email_addr.clone()))
-                .to(Mailbox::from(
-                    match email_proto.recipient.parse::<Address>() {
-                        Ok(to) => to,
-                        Err(e) => {
-                            RustResult {
-                                result: false,
-                                info: e.to_string(),
-                            }
-                            .send_signal_to_dart();
-                            return;
+                .to(Mailbox::from(match email_send.to.parse::<Address>() {
+                    Ok(to) => to,
+                    Err(e) => {
+                        RustResult {
+                            result: false,
+                            info: e.to_string(),
                         }
-                    },
-                ))
-                .subject(email_proto.subject);
+                        .send_signal_to_dart();
+                        return;
+                    }
+                }))
+                .subject(email_send.subject);
 
             let mut multi_part = MultiPart::mixed().singlepart(
                 SinglePart::builder()
                     .header(header::ContentType::TEXT_PLAIN)
-                    .body(email_proto.body),
+                    .body(email_send.body),
             );
 
-            for path in email_proto.filepath.iter() {
+            for path in email_send.filepath.iter() {
                 let mime_type = from_path(&path.clone()).first_or_octet_stream();
                 multi_part = multi_part.singlepart(Attachment::new(path.clone()).body(
                     fs::read(path).unwrap(),
@@ -284,7 +280,7 @@ impl User {
         &self,
         imap_cli: &mut Session<Connection>,
         mailbox: String,
-    ) -> Result<Vec<EmailFetch>, Box<dyn Error>> {
+    ) -> Result<Vec<Email>, Box<dyn Error>> {
         let mut messages = vec![];
         imap_cli.select(mailbox).unwrap();
 
@@ -352,7 +348,7 @@ impl User {
                 Err(e) => return Err(Box::new(e)),
             };
 
-            messages.push(EmailFetch {
+            messages.push(Email {
                 from: parsed
                     .headers
                     .get_first_value("From")

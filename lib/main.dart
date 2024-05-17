@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
-import './messages/generated.dart';
 import 'package:eua_ui/compose.dart';
 import 'package:eua_ui/inbox.dart';
 import 'package:eua_ui/settings.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import './messages/generated.dart';
 
 void main() async {
   await initializeRust();
@@ -29,9 +30,8 @@ class LoginStatusNotifier extends ChangeNotifier {
 }
 
 class MyApp extends StatefulWidget {
-  static const seedColor = Color.fromRGBO(56, 132, 255, 1);
-
   const MyApp({super.key});
+  static const seedColor = Color.fromRGBO(56, 132, 255, 1);
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -119,21 +119,25 @@ class _MyAppState extends State<MyApp> {
                 children: [
                   Padding(
                     padding: EdgeInsets.fromLTRB(24, 24, 24, 8),
-                    child: Text('谐声收藏家',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'DingTalk',
-                        )),
+                    child: Text(
+                      '谐声收藏家',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'DingTalk',
+                      ),
+                    ),
                   ),
                   Padding(
                     padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
-                    child: Text('你的 📧 用户代理',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'DingTalk',
-                        )),
+                    child: Text(
+                      '你的 📧 用户代理',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'DingTalk',
+                      ),
+                    ),
                   ),
                   SizedBox(height: 24),
                 ],
