@@ -1,8 +1,13 @@
+// todo: 选择多个附件
+// todo: 展示已选附件列表
+
+import 'dart:io';
 import 'dart:math';
 
 import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pbserver.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -25,6 +30,7 @@ class _ComposePageState extends State<ComposePage> {
 
   bool _isComposing = false;
   bool _emailSent = false;
+  List<String> _files = [];
 
   final _sent = [];
 
@@ -67,8 +73,10 @@ class _ComposePageState extends State<ComposePage> {
 
   void _reset() {
     _clearContent();
-    _emailSent = false;
     _sent.clear();
+    setState(() {
+      _emailSent = false;
+    });
   }
 
   void send() async {
@@ -76,8 +84,10 @@ class _ComposePageState extends State<ComposePage> {
     EmailProto(
             recipient: _recipientController.text,
             subject: _subjectController.text,
+            filepath: _files,
             body: _bodyController.text)
         .sendSignalToRust();
+    _files = [];
     final sendResult = (await _rustResultStream.first).message;
     if (sendResult.result) {
       setState(() {
@@ -102,6 +112,16 @@ class _ComposePageState extends State<ComposePage> {
         duration: duration,
       ),
     );
+  }
+
+  Future<File?> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles();
+
+    if (result != null) {
+      return File(result.files.single.path!);
+    } else {
+      return null;
+    }
   }
 
   void _draftSavingDialog(BuildContext context) {
@@ -244,6 +264,42 @@ class _ComposePageState extends State<ComposePage> {
                             FocusScope.of(context).requestFocus(_bodyFocusNode);
                           },
                         ),
+                      ),
+                      const SizedBox(height: 16.0),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        child: Row(children: [
+                          IconButton(
+                            icon: const Icon(Icons.file_present_outlined),
+                            onPressed: () async {
+                              File? file = await _pickFile();
+                              if (file != null) {
+                                setState(() {
+                                  _files.add(file.path);
+                                });
+                              } else {
+                                _showSnackBar("取消选择附件", Colors.green,
+                                    const Duration(seconds: 1));
+                              }
+                            },
+                          ),
+                          Expanded(
+                              child: Padding(
+                                  padding: const EdgeInsets.all(20),
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: _files.length,
+                                    itemBuilder: (context, index) {
+                                      final filepath = _files[index];
+                                      return ListTile(
+                                        title: Text(filepath,
+                                            style: const TextStyle(
+                                                color: Colors.grey),
+                                            textAlign: TextAlign.center),
+                                      );
+                                    },
+                                  )))
+                        ]),
                       ),
                       const SizedBox(height: 16.0),
                       Expanded(

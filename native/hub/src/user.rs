@@ -1,16 +1,20 @@
 use crate::messages::user::*;
 
-use std::{error::Error, str};
+use std::{error::Error, fs, str};
 
 use base64::prelude::*;
 use imap::{self, Connection, Session};
 use lettre::{
-    message::{header::ContentType, Mailbox},
+    message::{
+        header::{self, ContentType},
+        Attachment, Mailbox, MultiPart, SinglePart,
+    },
     transport::smtp::authentication::Credentials,
     Address, Message, SmtpTransport, Transport,
 };
 use mailparse::*;
 
+use mime_guess::from_path;
 use rinf::debug_print;
 
 pub async fn main_logic() {
@@ -196,26 +200,60 @@ impl User {
     }
 
     pub fn send(&self, smtp_cli: &SmtpTransport, email_proto: EmailProto) {
-        // Build the message
-        let email = Message::builder()
-            .from(Mailbox::from(self.email_addr.clone()))
-            .to(Mailbox::from(
-                match email_proto.recipient.parse::<Address>() {
-                    Ok(to) => to,
-                    Err(e) => {
-                        RustResult {
-                            result: false,
-                            info: e.to_string(),
+        let email = if email_proto.filepath.is_empty() {
+            Message::builder()
+                .from(Mailbox::from(self.email_addr.clone()))
+                .to(Mailbox::from(
+                    match email_proto.recipient.parse::<Address>() {
+                        Ok(to) => to,
+                        Err(e) => {
+                            RustResult {
+                                result: false,
+                                info: e.to_string(),
+                            }
+                            .send_signal_to_dart();
+                            return;
                         }
-                        .send_signal_to_dart();
-                        return;
-                    }
-                },
-            ))
-            .subject(email_proto.subject)
-            .header(ContentType::TEXT_PLAIN)
-            .body(email_proto.body)
-            .unwrap();
+                    },
+                ))
+                .subject(email_proto.subject)
+                .header(ContentType::TEXT_PLAIN)
+                .body(email_proto.body)
+                .unwrap()
+        } else {
+            let builder = Message::builder()
+                .from(Mailbox::from(self.email_addr.clone()))
+                .to(Mailbox::from(
+                    match email_proto.recipient.parse::<Address>() {
+                        Ok(to) => to,
+                        Err(e) => {
+                            RustResult {
+                                result: false,
+                                info: e.to_string(),
+                            }
+                            .send_signal_to_dart();
+                            return;
+                        }
+                    },
+                ))
+                .subject(email_proto.subject);
+
+            let mut multi_part = MultiPart::mixed().singlepart(
+                SinglePart::builder()
+                    .header(header::ContentType::TEXT_PLAIN)
+                    .body(email_proto.body),
+            );
+
+            for path in email_proto.filepath.iter() {
+                let mime_type = from_path(&path.clone()).first_or_octet_stream();
+                multi_part = multi_part.singlepart(Attachment::new(path.clone()).body(
+                    fs::read(path).unwrap(),
+                    mime_type.to_string().parse().unwrap(),
+                ));
+            }
+
+            builder.multipart(multi_part).unwrap()
+        };
 
         // Send the message
         match smtp_cli.send(&email) {

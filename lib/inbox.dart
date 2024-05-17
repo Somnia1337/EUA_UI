@@ -1,3 +1,6 @@
+// todo: 收取附件: 对常见类型予以显示，对所有类型可选保存
+// todo: 不重复下载已经下载的邮件
+
 import 'package:flutter/material.dart';
 import 'package:eua_ui/messages/user.pbserver.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
