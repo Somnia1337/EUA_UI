@@ -222,7 +222,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         Padding(
           padding: EdgeInsets.all(0),
-          child: Text('v0.4.1',
+          child: Text('v0.4.2',
               style: TextStyle(
                 fontSize: 16,
                 fontFamily: 'Consolas',

@@ -145,6 +145,8 @@ class _MailboxPageState extends State<MailboxPage> {
   bool _triedFetching = false;
   bool _existsMessage = false;
   bool _isFetching = false;
+  bool _isReadingDetail = false;
+  late EmailFetch _selectedEmail;
 
   List<EmailFetch> messages = [];
 
@@ -181,7 +183,7 @@ class _MailboxPageState extends State<MailboxPage> {
         backgroundColor: Color.fromRGBO(MyApp.seedColor.red,
             MyApp.seedColor.green, MyApp.seedColor.blue, 0.8),
       ),
-      floatingActionButton: _isFetching
+      floatingActionButton: _isFetching || _isReadingDetail
           ? null
           : FloatingActionButton(
               autofocus: true,
@@ -192,43 +194,109 @@ class _MailboxPageState extends State<MailboxPage> {
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          children: _isReadingDetail
+              ? [
+                  Expanded(
+                    child: EmailDetailScreen(
+                      email: _selectedEmail,
+                      onBack: () {
+                        setState(() {
+                          _isReadingDetail = false;
+                        });
+                      },
+                    ),
+                  )
+                ]
+              : [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 300, maxWidth: 800),
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: _isFetching
+                            ? [
+                                Text('下载中...', style: _style),
+                              ]
+                            : _triedFetching
+                                ? _existsMessage
+                                    ? [
+                                        Text('邮件列表', style: _style),
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(20),
+                                            child: ListView.builder(
+                                              shrinkWrap: true,
+                                              itemCount: messages.length,
+                                              itemBuilder: (context, index) {
+                                                final email = messages[index];
+                                                return ListTile(
+                                                  title: Text(email.subject),
+                                                  subtitle: Text(
+                                                      "From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}"),
+                                                  onTap: () {
+                                                    setState(() {
+                                                      _selectedEmail = email;
+                                                      _isReadingDetail = true;
+                                                    });
+                                                  },
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ]
+                                    : [
+                                        Text('无邮件，可刷新重试', style: _style),
+                                      ]
+                                : [
+                                    Text('请手动下载邮件', style: _style),
+                                  ]),
+                  )
+                ],
+        ),
+      ),
+    );
+  }
+}
+
+class EmailDetailScreen extends StatelessWidget {
+  final EmailFetch email;
+  final VoidCallback onBack;
+
+  const EmailDetailScreen(
+      {super.key, required this.email, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(email.subject),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: onBack,
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 300),
-              child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: _isFetching
-                      ? [
-                          Text('下载中...', style: _style),
-                        ]
-                      : _triedFetching
-                          ? _existsMessage
-                              ? [
-                                  Text('邮件列表', style: _style),
-                                  Expanded(
-                                    child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: ListView.builder(
-                                          shrinkWrap: true,
-                                          itemCount: messages.length,
-                                          itemBuilder: (context, index) {
-                                            final email = messages[index];
-                                            return ListTile(
-                                              title: Text(email.subject),
-                                              subtitle: Text(
-                                                  "From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}"),
-                                            );
-                                          },
-                                        )),
-                                  ),
-                                ]
-                              : [
-                                  Text('无邮件，可刷新重试', style: _style),
-                                ]
-                          : [
-                              Text('请手动下载邮件', style: _style),
-                            ]),
-            )
+            Text(
+              "From: ${email.from}",
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              "To: ${email.to}",
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              "Date: ${email.date}",
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              email.body,
+              style: const TextStyle(fontSize: 16),
+            ),
           ],
         ),
       ),

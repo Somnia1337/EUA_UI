@@ -2,6 +2,7 @@ use crate::messages::user::*;
 
 use std::{error::Error, str};
 
+use base64::prelude::*;
 use imap::{self, Connection, Session};
 use lettre::{
     message::{header::ContentType, Mailbox},
@@ -121,10 +122,14 @@ pub async fn main_logic() {
             4 => {
                 if user.as_ref().is_some() && imap_cli.as_ref().is_some() {
                     if let Some(mailbox_selection) = mailbox_selection_listener.recv().await {
-                        let messages = user.as_ref().unwrap().fetch_messages(
-                            imap_cli.as_mut().unwrap(),
-                            mailbox_selection.message.mailbox,
-                        );
+                        let messages = user
+                            .as_ref()
+                            .unwrap()
+                            .fetch_messages(
+                                imap_cli.as_mut().unwrap(),
+                                mailbox_selection.message.mailbox,
+                            )
+                            .unwrap();
                         MessagesFetch { emails: messages }.send_signal_to_dart();
                     }
                 }
@@ -241,11 +246,11 @@ impl User {
         &self,
         imap_cli: &mut Session<Connection>,
         mailbox: String,
-    ) -> Vec<EmailFetch> {
+    ) -> Result<Vec<EmailFetch>, Box<dyn Error>> {
         let mut messages = vec![];
         imap_cli.select(mailbox).unwrap();
 
-        // Fetch all messages in the mailbox and print their "Subject: " line
+        // Fetch all messages in the mailbox
         let mut i = 1;
         loop {
             let message = imap_cli.fetch(i.to_string(), "RFC822").unwrap();
@@ -263,52 +268,74 @@ impl User {
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>();
 
-            let mut is_body = false;
-            let mut is_after_date = false;
-            let mut from = String::from("[未知发送者]");
-            let mut to = String::from("[未知收件人]");
-            let mut subject = String::from("[无主题]");
-            let mut date = String::from("[未知日期]");
-            let mut body = String::from("[无正文]");
-            for line in message_body.iter() {
-                // Real body starts at line "From: "
-                if line.starts_with("From: ") {
-                    is_body = true;
-                }
-
-                // Lines after "Date: " are "body" part
-                if let Some(_date) = line.strip_prefix("Date: ") {
-                    date = _date.to_string();
-                    is_after_date = true;
-                    continue;
-                }
-                if is_after_date {
-                    body += line;
-                    continue;
-                }
-
-                // Ignore "Content" header
-                if is_body {
-                    if let Some(_from) = line.strip_prefix("From: ") {
-                        from = _from.to_string();
-                    } else if let Some(_to) = line.strip_prefix("To: ") {
-                        to = _to.to_string();
-                    } else if let Some(_subject) = line.strip_prefix("Subject: ") {
-                        subject = _subject.to_string();
-                    }
+            let mut from_st = -1;
+            let mut date_st = -1;
+            for (i, l) in message_body.iter().enumerate() {
+                if l.starts_with("From: ") {
+                    from_st = i as i32;
+                } else if l.starts_with("Date: ") {
+                    date_st = i as i32 + 1;
+                    break;
                 }
             }
 
+            if from_st == -1 {
+                panic!();
+            }
+
+            let con = message_body
+                .iter()
+                .skip(from_st as usize)
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            let mut body = message_body
+                .iter()
+                .skip(date_st as usize)
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+                .trim()
+                .to_string();
+            if body.is_empty() {
+                body = String::from("[无正文]");
+            } else {
+                body = String::from_utf8(
+                    BASE64_STANDARD
+                        .decode(body.as_bytes())
+                        .unwrap_or("[decoding failed]".as_bytes().to_vec()),
+                )
+                .unwrap_or(String::from("[decoding failed]"));
+            }
+
+            let parsed = match parse_mail(con.as_bytes()) {
+                Ok(p) => p,
+                Err(e) => return Err(Box::new(e)),
+            };
+
             messages.push(EmailFetch {
-                from,
-                to,
-                subject,
-                date,
+                from: parsed
+                    .headers
+                    .get_first_value("From")
+                    .unwrap_or(String::from("[未知发件人]")),
+                to: parsed
+                    .headers
+                    .get_first_value("To")
+                    .unwrap_or(String::from("[未知收件人]")),
+                subject: parsed
+                    .headers
+                    .get_first_value("Subject")
+                    .unwrap_or(String::from("[无主题]")),
+                date: parsed
+                    .headers
+                    .get_first_value("Date")
+                    .unwrap_or(String::from("[未知日期]")),
                 body,
             });
             i += 1;
         }
 
-        messages
+        Ok(messages)
     }
 }
