@@ -1,5 +1,4 @@
-// todo: 选择多个附件
-// todo: 展示已选附件列表
+// todo: 附件也算作草稿的一部分
 
 import 'dart:io';
 import 'dart:math';
@@ -267,10 +266,11 @@ class _ComposePageState extends State<ComposePage> {
                       ),
                       const SizedBox(height: 16.0),
                       ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 500),
+                        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 115),
                         child: Row(children: [
                           IconButton(
                             icon: const Icon(Icons.file_present_outlined),
+                            splashRadius: 20,
                             onPressed: () async {
                               File? file = await _pickFile();
                               if (file != null) {
