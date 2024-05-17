@@ -1,18 +1,21 @@
 import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:eua_ui/messages/user.pbserver.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     this.onLoginStatusChanged,
+    this.onColorChanged,
     this.onLoggingProcessChanged,
     this.onToggleDarkMode,
   });
-  final void Function(bool)? onLoginStatusChanged;
-  final void Function(bool)? onLoggingProcessChanged;
-  final void Function(bool)? onToggleDarkMode;
+  final void Function({required bool isLoggedIn})? onLoginStatusChanged;
+  final void Function({required Color seedColor})? onColorChanged;
+  final void Function({required bool isLogging})? onLoggingProcessChanged;
+  final void Function({required bool isDarkMode})? onToggleDarkMode;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -31,8 +34,10 @@ class _SettingsPageState extends State<SettingsPage> {
   String _userEmailAddr = '';
 
   bool _isLoggedIn = false;
-  bool _isLoggingInOrOut = false;
+  bool _isLogging = false;
   bool _isPasswordVisible = false;
+
+  Color _pickerColor = const Color.fromRGBO(56, 132, 255, 1);
 
   @override
   void dispose() {
@@ -44,10 +49,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _triggerLoginOrLogout() async {
     setState(() {
-      _isLoggingInOrOut = true;
+      _isLogging = true;
     });
     if (widget.onLoggingProcessChanged != null) {
-      widget.onLoggingProcessChanged!(true);
+      widget.onLoggingProcessChanged!(isLogging: true);
     }
     if (!_isLoggedIn) {
       final loginResult = await login();
@@ -56,7 +61,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _isLoggedIn = true;
         });
         if (widget.onLoginStatusChanged != null) {
-          widget.onLoginStatusChanged!(true);
+          widget.onLoginStatusChanged!(isLoggedIn: true);
         }
         _passwordController.clear();
       } else {
@@ -64,17 +69,17 @@ class _SettingsPageState extends State<SettingsPage> {
           _isLoggedIn = false;
         });
         if (widget.onLoginStatusChanged != null) {
-          widget.onLoginStatusChanged!(false);
+          widget.onLoginStatusChanged!(isLoggedIn: false);
         }
       }
     } else {
       _logoutDialog(context);
     }
     setState(() {
-      _isLoggingInOrOut = false;
+      _isLogging = false;
     });
     if (widget.onLoggingProcessChanged != null) {
-      widget.onLoggingProcessChanged!(false);
+      widget.onLoggingProcessChanged!(isLogging: false);
     }
   }
 
@@ -118,6 +123,46 @@ class _SettingsPageState extends State<SettingsPage> {
     return false;
   }
 
+  void _showColorPickerDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          content: ColorPicker(
+            pickerColor: _pickerColor,
+            onColorChanged: (color) {
+              if (widget.onColorChanged != null) {
+                widget.onColorChanged!(seedColor: color);
+              }
+              setState(() {
+                _pickerColor = color;
+              });
+            },
+          ),
+          actions: [
+            TextButton(
+              child: const Text('重置'),
+              onPressed: () {
+                setState(() {
+                  _pickerColor = const Color.fromRGBO(56, 132, 255, 1);
+                  if (widget.onColorChanged != null) {
+                    widget.onColorChanged!(seedColor: _pickerColor);
+                  }
+                });
+              },
+            ),
+            TextButton(
+              child: const Text('完成'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _logoutDialog(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -140,7 +185,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     _isLoggedIn = false;
                   });
                   if (widget.onLoginStatusChanged != null) {
-                    widget.onLoginStatusChanged!(false);
+                    widget.onLoginStatusChanged!(isLoggedIn: false);
                   }
                 }
                 if (!localContext.mounted) {
@@ -189,30 +234,39 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     final logControlButton = IconButton(
-      onPressed: !_isLoggingInOrOut ? _triggerLoginOrLogout : null,
+      onPressed: !_isLogging ? _triggerLoginOrLogout : null,
       tooltip: _isLoggedIn ? '退出登录' : '登录',
       icon: Icon(!_isLoggedIn ? Icons.login_outlined : Icons.logout_outlined),
     );
 
-    final toggleDarkModeButton = SizedBox(
-      width: 250,
-      child: SwitchListTile(
-        title: const Text(
-          '深色模式',
-          style: TextStyle(fontSize: 18),
+    final customizations = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          onPressed: () {
+            setState(() {
+              if (widget.onToggleDarkMode != null) {
+                widget.onToggleDarkMode!(
+                  isDarkMode: currentBrightness == Brightness.light,
+                );
+              }
+            });
+          },
+          tooltip: currentBrightness == Brightness.light ? '浅色模式' : '深色模式',
+          splashRadius: 20,
+          icon: Icon(
+            currentBrightness == Brightness.light
+                ? Icons.wb_sunny_outlined
+                : Icons.nightlight_round_outlined,
+          ),
         ),
-        secondary: Icon(
-          currentBrightness == Brightness.light
-              ? Icons.wb_sunny_outlined
-              : Icons.nightlight_round_outlined,
+        IconButton(
+          onPressed: _showColorPickerDialog,
+          tooltip: '颜色',
+          splashRadius: 20,
+          icon: const Icon(Icons.color_lens_outlined),
         ),
-        value: currentBrightness == Brightness.dark,
-        onChanged: (value) {
-          if (widget.onToggleDarkMode != null) {
-            widget.onToggleDarkMode!(value);
-          }
-        },
-      ),
+      ],
     );
 
     const info = Column(
@@ -230,7 +284,7 @@ class _SettingsPageState extends State<SettingsPage> {
         Padding(
           padding: EdgeInsets.zero,
           child: Text(
-            'v0.4.3',
+            'v0.4.4',
             style: TextStyle(
               fontSize: 16,
               fontFamily: 'Consolas',
@@ -269,7 +323,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         sizedBoxSmall,
                         logControlButton,
                         sizedBoxBig,
-                        toggleDarkModeButton,
+                        customizations,
                         sizedBoxSmall,
                         info,
                         sizedBoxSmall,
@@ -334,7 +388,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         sizedBoxSmall,
                         logControlButton,
                         sizedBoxBig,
-                        toggleDarkModeButton,
+                        customizations,
                         sizedBoxSmall,
                         info,
                         sizedBoxSmall,
@@ -346,5 +400,14 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
+  }
+}
+
+class ColorChangeNotifier extends ChangeNotifier {
+  late Color seedColor;
+
+  void updateColor({required Color seedColor}) {
+    this.seedColor = seedColor;
+    notifyListeners();
   }
 }

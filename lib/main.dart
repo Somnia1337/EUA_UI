@@ -12,6 +12,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => LoginStatusNotifier()),
+        ChangeNotifierProvider(create: (_) => ColorChangeNotifier()),
       ],
       child: const MyApp(),
     ),
@@ -19,20 +20,25 @@ void main() async {
 }
 
 class LoginStatusNotifier extends ChangeNotifier {
-  bool _isLoggedIn = false;
+  bool isLoggedIn = false;
 
-  bool get isLoggedIn => _isLoggedIn;
+  void updateLoginStatus({required bool isLoggedIn}) {
+    this.isLoggedIn = isLoggedIn;
+    notifyListeners();
+  }
+}
 
-  void updateLoginStatus(bool isLoggedIn) {
-    _isLoggedIn = isLoggedIn;
+class ColorChangeNotifier extends ChangeNotifier {
+  Color seedColor = const Color.fromRGBO(0, 0, 0, 1);
+
+  void updateColor({required Color seedColor}) {
+    this.seedColor = seedColor;
     notifyListeners();
   }
 }
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
-  static const seedColor = Color.fromRGBO(56, 132, 255, 1);
-
   @override
   State<MyApp> createState() => _MyAppState();
 }
@@ -43,25 +49,36 @@ class _MyAppState extends State<MyApp> {
   bool _isLoggedIn = false;
   bool _isDarkMode = false;
 
-  final _seedColor = const Color.fromRGBO(56, 132, 255, 1);
+  Color seedColor = const Color.fromRGBO(56, 132, 255, 1);
 
-  late final ThemeData _lightTheme = ThemeData(
-    brightness: Brightness.light,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: _seedColor,
-      primary: _seedColor,
-    ),
-    useMaterial3: false,
-  );
+  late ThemeData _lightTheme;
+  late ThemeData _darkTheme;
 
-  late final ThemeData _darkTheme = ThemeData(
-    brightness: Brightness.dark,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: _seedColor,
+  @override
+  void initState() {
+    super.initState();
+    _rebuildThemes();
+  }
+
+  void _rebuildThemes() {
+    _lightTheme = ThemeData(
+      brightness: Brightness.light,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: seedColor,
+        primary: seedColor,
+      ),
+      useMaterial3: false,
+    );
+
+    _darkTheme = ThemeData(
       brightness: Brightness.dark,
-    ),
-    useMaterial3: false,
-  );
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: seedColor,
+        brightness: Brightness.dark,
+      ),
+      useMaterial3: false,
+    );
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -86,12 +103,18 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       _isLoggedIn = isLoggedIn;
     });
-    if (!_isLoggedIn) {}
   }
 
-  void _toggleDarkMode(bool isOn) {
+  void _colorChanged(Color seedColor) {
     setState(() {
-      _isDarkMode = isOn;
+      this.seedColor = seedColor;
+      _rebuildThemes();
+    });
+  }
+
+  void _toggleDarkMode({required bool isDarkMode}) {
+    setState(() {
+      _isDarkMode = isDarkMode;
     });
   }
 
@@ -106,14 +129,14 @@ class _MyAppState extends State<MyApp> {
               onDestinationSelected: _onItemTapped,
               labelType: NavigationRailLabelType.all,
               backgroundColor: Color.fromRGBO(
-                _seedColor.red,
-                _seedColor.green,
-                _seedColor.blue,
+                seedColor.red,
+                seedColor.green,
+                seedColor.blue,
                 0.1,
               ),
               selectedLabelTextStyle: TextStyle(
                 fontSize: 16,
-                color: _seedColor,
+                color: seedColor,
               ),
               leading: const Column(
                 children: [
@@ -203,10 +226,15 @@ class _MyAppState extends State<MyApp> {
                   const ComposePage(),
                   const InboxPage(),
                   SettingsPage(
-                    onLoginStatusChanged: (isLoggedIn) {
+                    onLoginStatusChanged: ({required bool isLoggedIn}) {
                       Provider.of<LoginStatusNotifier>(context, listen: false)
-                          .updateLoginStatus(isLoggedIn);
+                          .updateLoginStatus(isLoggedIn: isLoggedIn);
                       _loginStatusChanged(isLoggedIn);
+                    },
+                    onColorChanged: ({required Color seedColor}) {
+                      Provider.of<ColorChangeNotifier>(context, listen: false)
+                          .updateColor(seedColor: seedColor);
+                      _colorChanged(seedColor);
                     },
                     onToggleDarkMode: _toggleDarkMode,
                   ),

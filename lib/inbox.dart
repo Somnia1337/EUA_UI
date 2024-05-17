@@ -1,6 +1,5 @@
-// TODO(Somnia1337): 收取附件: 对常见类型予以显示，对所有类型可选保存.
-// TODO(Somnia1337): 不重复下载已经下载的邮件
-// TODO(username): message.
+//! 收取附件: 对常见类型予以显示，对所有类型可选保存.
+//! 不重复下载已经下载的邮件
 
 import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
@@ -92,7 +91,7 @@ class _InboxPageState extends State<InboxPage> {
           : FloatingActionButton(
               onPressed: _fetchMailboxes,
               heroTag: 'inboxPageFloatingActionButton',
-              tooltip: '收取收件箱',
+              tooltip: '获取收件箱',
               child: const Icon(Icons.move_to_inbox_outlined),
             ),
       body: _isMailboxesFetched
@@ -124,7 +123,7 @@ class _InboxPageState extends State<InboxPage> {
             )
           : Center(
               child: Text(
-                _isFetchingMailboxes ? '收取中...' : '请手动收取收件箱',
+                _isFetchingMailboxes ? '获取中...' : '请手动获取收件箱',
                 style: const TextStyle(
                   fontSize: 20,
                 ),
@@ -184,12 +183,6 @@ class _MailboxPageState extends State<MailboxPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('收件箱：$mailbox'),
-        backgroundColor: Color.fromRGBO(
-          MyApp.seedColor.red,
-          MyApp.seedColor.green,
-          MyApp.seedColor.blue,
-          0.8,
-        ),
       ),
       floatingActionButton: _isFetching || _isReadingDetail
           ? null
@@ -218,7 +211,7 @@ class _MailboxPageState extends State<MailboxPage> {
               : [
                   ConstrainedBox(
                     constraints:
-                        const BoxConstraints(maxHeight: 300, maxWidth: 800),
+                        const BoxConstraints(maxHeight: 350, maxWidth: 400),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: _isFetching

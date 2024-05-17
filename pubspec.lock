@@ -134,6 +134,15 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_colorpicker:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: master
+      resolved-ref: "92bdb69a313a56c391ef148c12ef6539bd31253d"
+      url: "https://github.com/mchome/flutter_colorpicker"
+    source: git
+    version: "1.0.3"
   flutter_launcher_icons:
     dependency: "direct main"
     description:
