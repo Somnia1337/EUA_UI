@@ -28,8 +28,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   final _rustResultListener = RustResult.rustSignalStream;
 
-  final green = const Color.fromRGBO(66, 184, 131, 0.8);
-  final red = const Color.fromRGBO(233, 95, 89, 0.8);
+  final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
+  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
 
   String _userEmailAddr = '';
 
@@ -73,7 +73,7 @@ class _SettingsPageState extends State<SettingsPage> {
         }
       }
     } else {
-      _logoutDialog(context);
+      _showLogoutDialog(context);
     }
     setState(() {
       _isLogging = false;
@@ -85,15 +85,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<bool> login() async {
     if (_emailAddrController.text == '' && _passwordController.text == '') {
-      _showSnackBar('❗"邮箱"和"授权码"是必填字段！', red, const Duration(seconds: 3));
+      _showSnackBar('😵‍💫"邮箱"和"授权码"是必填字段！', _yellow, const Duration(seconds: 3));
       return Future.value(false);
     }
     if (_emailAddrController.text == '') {
-      _showSnackBar('❗"邮箱"是必填字段！', red, const Duration(seconds: 3));
+      _showSnackBar('😵‍💫"邮箱"是必填字段！', _yellow, const Duration(seconds: 3));
       return Future.value(false);
     }
     if (_passwordController.text == '') {
-      _showSnackBar('❗"授权码"是必填字段！', red, const Duration(seconds: 3));
+      _showSnackBar('😵‍💫"授权码"是必填字段！', _yellow, const Duration(seconds: 3));
       return Future.value(false);
     }
 
@@ -106,10 +106,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
     final loginResult = (await _rustResultListener.first).message;
     if (loginResult.result) {
-      _showSnackBar('🤗登录成功', green, const Duration(seconds: 1));
+      _showSnackBar('🤗登录成功', null, const Duration(seconds: 1));
       return true;
     }
-    _showSnackBar('❌登录失败：${loginResult.info}', red, const Duration(seconds: 3));
+    _showSnackBar(
+      '😥登录失败：${loginResult.info}',
+      _red,
+      const Duration(seconds: 3),
+    );
     return false;
   }
 
@@ -117,9 +121,14 @@ class _SettingsPageState extends State<SettingsPage> {
     pb.Action(action: 1).sendSignalToRust();
     final logoutResult = (await _rustResultListener.first).message;
     if (logoutResult.result) {
-      _showSnackBar('😶‍🌫️已退出登录', green, const Duration(seconds: 1));
+      _showSnackBar('🫥已退出登录', null, const Duration(seconds: 1));
       return true;
     }
+    _showSnackBar(
+      '😥退出登录失败：${logoutResult.info}',
+      _red,
+      const Duration(seconds: 1),
+    );
     return false;
   }
 
@@ -163,7 +172,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _logoutDialog(BuildContext context) {
+  void _showLogoutDialog(BuildContext context) {
     showDialog<void>(
       context: context,
       builder: (BuildContext context) {
@@ -201,7 +210,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showSnackBar(String message, Color color, Duration duration) {
+  void _showSnackBar(String message, Color? color, Duration duration) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -284,7 +293,7 @@ class _SettingsPageState extends State<SettingsPage> {
         Padding(
           padding: EdgeInsets.zero,
           child: Text(
-            'v0.4.4',
+            'v0.4.5',
             style: TextStyle(
               fontSize: 16,
               fontFamily: 'Consolas',

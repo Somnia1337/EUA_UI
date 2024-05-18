@@ -15,7 +15,6 @@ use lettre::{
 use mailparse::*;
 
 use mime_guess::from_path;
-use rinf::debug_print;
 
 pub async fn main_logic() {
     let mut user: Option<User> = None;
@@ -29,6 +28,7 @@ pub async fn main_logic() {
 
     while let Some(dart_signal) = action_listener.recv().await {
         match dart_signal.message.action {
+            // Login
             0 => {
                 user = None;
                 smtp_cli = None;
@@ -44,60 +44,48 @@ pub async fn main_logic() {
                             info: String::from("用户创建失败，请检查邮箱格式\n当前仅支持 qq.com | 163.com | 126.com"),
                         }
                         .send_signal_to_dart();
+                        continue;
                     }
                 }
 
                 // Connect to SMTP server
-                if let Some(ref cur_user) = user {
-                    match cur_user.connect_smtp() {
-                        Ok(smtp_transport) => {
-                            smtp_cli = Some(smtp_transport);
+                match user.as_ref().unwrap().connect_smtp() {
+                    Ok(smtp_transport) => smtp_cli = Some(smtp_transport),
+                    Err(e) => {
+                        RustResult {
+                            result: false,
+                            info: e.to_string(),
                         }
-                        Err(e) => {
-                            RustResult {
-                                result: false,
-                                info: e.to_string(),
-                            }
-                            .send_signal_to_dart();
-                        }
+                        .send_signal_to_dart();
+                        continue;
                     }
                 }
 
                 // Connect to IMAP server
-                if let Some(ref cur_user) = user {
-                    match cur_user.connect_imap() {
-                        Ok(imap_session) => {
-                            imap_cli = Some(imap_session);
+                match user.as_ref().unwrap().connect_imap() {
+                    Ok(imap_session) => imap_cli = Some(imap_session),
+                    Err(e) => {
+                        RustResult {
+                            result: false,
+                            info: e.to_string(),
                         }
-                        Err(e) => {
-                            RustResult {
-                                result: false,
-                                info: e.to_string(),
-                            }
-                            .send_signal_to_dart();
-                        }
+                        .send_signal_to_dart();
+                        continue;
                     }
                 }
 
-                if user.is_some() && smtp_cli.is_some() && imap_cli.is_some() {
-                    RustResult {
-                        result: true,
-                        info: String::new(),
-                    }
-                    .send_signal_to_dart();
+                RustResult {
+                    result: true,
+                    info: String::new(),
                 }
+                .send_signal_to_dart();
             }
+
+            // Logout
             1 => {
+                let _ = imap_cli.as_mut().unwrap().logout();
                 user = None;
                 smtp_cli = None;
-                if imap_cli.is_some() {
-                    match imap_cli.as_mut().unwrap().logout() {
-                        Ok(_) => {}
-                        Err(e) => {
-                            debug_print!("{:?}", e);
-                        }
-                    };
-                }
                 imap_cli = None;
                 RustResult {
                     result: true,
@@ -105,40 +93,63 @@ pub async fn main_logic() {
                 }
                 .send_signal_to_dart();
             }
+
+            // Send
             2 => {
                 if let Some(email_proto) = email_send_listener.recv().await {
                     if user.as_ref().is_some() && smtp_cli.as_ref().is_some() {
                         user.as_ref()
                             .unwrap()
-                            .send(smtp_cli.as_ref().unwrap(), email_proto.message);
+                            .send(smtp_cli.as_ref().unwrap(), email_proto.message)
+                            .await;
                     }
                 }
             }
+
+            // Fetch mailboxes
             3 => {
-                if user.as_ref().is_some() && imap_cli.as_ref().is_some() {
-                    let mailboxes = user
+                MailboxesFetch {
+                    mailboxes: user
                         .as_ref()
                         .unwrap()
-                        .fetch_mailboxes(imap_cli.as_mut().unwrap());
-                    MailboxesFetch { mailboxes }.send_signal_to_dart();
+                        .fetch_mailboxes(imap_cli.as_mut().unwrap())
+                        .await,
                 }
+                .send_signal_to_dart();
             }
+
+            // Fetch email
             4 => {
-                if user.as_ref().is_some() && imap_cli.as_ref().is_some() {
-                    if let Some(mailbox_selection) = mailbox_selection_listener.recv().await {
-                        let messages = user
-                            .as_ref()
-                            .unwrap()
-                            .fetch_messages(
-                                imap_cli.as_mut().unwrap(),
-                                mailbox_selection.message.mailbox,
-                            )
-                            .unwrap();
-                        MessagesFetch { emails: messages }.send_signal_to_dart();
-                    }
+                if let Some(mailbox_selection) = mailbox_selection_listener.recv().await {
+                    match user
+                        .as_ref()
+                        .unwrap()
+                        .fetch_messages(
+                            imap_cli.as_mut().unwrap(),
+                            mailbox_selection.message.mailbox,
+                        )
+                        .await
+                    {
+                        Ok(messages) => {
+                            RustResult {
+                                result: true,
+                                info: String::new(),
+                            }
+                            .send_signal_to_dart();
+                            MessagesFetch { emails: messages }.send_signal_to_dart();
+                        }
+                        Err(e) => {
+                            RustResult {
+                                result: true,
+                                info: e.to_string(),
+                            }
+                            .send_signal_to_dart();
+                        }
+                    };
                 }
             }
-            _ => {}
+
+            _ => unreachable!(),
         };
     }
 }
@@ -152,7 +163,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn build(user_proto: UserProto) -> Option<User> {
+    fn build(user_proto: UserProto) -> Option<User> {
         let email: Address = match user_proto.email_addr.trim().parse().ok() {
             Some(e) => e,
             None => return None,
@@ -199,7 +210,7 @@ impl User {
         }
     }
 
-    pub fn send(&self, smtp_cli: &SmtpTransport, email_send: EmailSend) {
+    pub async fn send(&self, smtp_cli: &SmtpTransport, email_send: EmailSend) {
         let email = if email_send.filepath.is_empty() {
             Message::builder()
                 .from(Mailbox::from(self.email_addr.clone()))
@@ -266,7 +277,7 @@ impl User {
         };
     }
 
-    pub fn fetch_mailboxes(&self, imap_cli: &mut Session<Connection>) -> Vec<String> {
+    pub async fn fetch_mailboxes(&self, imap_cli: &mut Session<Connection>) -> Vec<String> {
         imap_cli
             .list(Some(""), Some("*"))
             .unwrap()
@@ -276,7 +287,7 @@ impl User {
             .collect::<Vec<_>>()
     }
 
-    fn fetch_messages(
+    pub async fn fetch_messages(
         &self,
         imap_cli: &mut Session<Connection>,
         mailbox: String,
@@ -314,7 +325,7 @@ impl User {
             }
 
             if from_st == -1 {
-                panic!();
+                continue;
             }
 
             let con = message_body

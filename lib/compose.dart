@@ -24,14 +24,15 @@ class _ComposePageState extends State<ComposePage> {
   final _subjectFocusNode = FocusNode();
   final _bodyFocusNode = FocusNode();
 
-  final _green = const Color.fromRGBO(66, 184, 131, 0.8);
+  final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
   final _red = const Color.fromRGBO(233, 95, 89, 0.8);
 
   bool _isComposing = false;
   bool _isSending = false;
   bool _isReadingDetail = false;
   bool _emailSent = false;
-  List<String> _files = [];
+  List<File> _files = [];
+  var _filesTotal = 0.0;
 
   late Email _selectedEmail;
 
@@ -72,6 +73,7 @@ class _ComposePageState extends State<ComposePage> {
     _bodyController.clear();
     setState(() {
       _files = [];
+      _filesTotal = 0;
     });
   }
 
@@ -81,7 +83,12 @@ class _ComposePageState extends State<ComposePage> {
     setState(() {
       _emailSent = false;
       _files = [];
+      _filesTotal = 0;
     });
+  }
+
+  String _getFilepath(File file) {
+    return file.path;
   }
 
   Future<void> send() async {
@@ -89,7 +96,7 @@ class _ComposePageState extends State<ComposePage> {
     EmailSend(
       to: _toController.text,
       subject: _subjectController.text,
-      filepath: _files,
+      filepath: _files.map(_getFilepath),
       body: _bodyController.text,
     ).sendSignalToRust();
 
@@ -119,14 +126,14 @@ class _ComposePageState extends State<ComposePage> {
       _clearContent();
     } else {
       _showSnackBar(
-        '❌邮件发送失败：${sendResult.info}',
+        '😥邮件发送失败：${sendResult.info}',
         _red,
         const Duration(seconds: 5),
       );
     }
   }
 
-  void _showSnackBar(String message, Color color, Duration duration) {
+  void _showSnackBar(String message, Color? color, Duration duration) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -190,7 +197,7 @@ class _ComposePageState extends State<ComposePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: _isReadingDetail
+      floatingActionButton: _isReadingDetail || _isSending
           ? null
           : Wrap(
               direction: Axis.vertical,
@@ -213,19 +220,9 @@ class _ComposePageState extends State<ComposePage> {
                         });
                       }
                     },
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      transitionBuilder:
-                          (Widget child, Animation<double> animation) {
-                        return RotationTransition(
-                          turns: animation,
-                          child: child,
-                        );
-                      },
-                      child: Icon(
-                        _isComposing ? Icons.close : Icons.add,
-                        key: ValueKey<bool>(_isComposing),
-                      ),
+                    child: Icon(
+                      _isComposing ? Icons.close : Icons.add,
+                      key: ValueKey<bool>(_isComposing),
                     ),
                   ),
                 ),
@@ -253,7 +250,12 @@ class _ComposePageState extends State<ComposePage> {
               },
             )
           : _isSending
-              ? const Center(child: Text('发送中...'))
+              ? const Center(
+                  child: Text(
+                    '发送中...',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                )
               : _isComposing
                   ? Padding(
                       padding: const EdgeInsets.all(12),
@@ -307,21 +309,34 @@ class _ComposePageState extends State<ComposePage> {
                                   onPressed: () async {
                                     final file = await _pickFile();
                                     if (file != null) {
-                                      if (!_files.contains(file.path)) {
-                                        setState(() {
-                                          _files.add(file.path);
-                                        });
+                                      if (!_files.any(
+                                        (existingFile) =>
+                                            existingFile.path == file.path,
+                                      )) {
+                                        final len = file.lengthSync() / 1048576;
+                                        if (_filesTotal + len <= 50.0) {
+                                          setState(() {
+                                            _files.add(file);
+                                            _filesTotal += len;
+                                          });
+                                        } else {
+                                          _showSnackBar(
+                                            '😵‍💫附件的总大小不能超过 50MB！',
+                                            _yellow,
+                                            const Duration(seconds: 3),
+                                          );
+                                        }
                                       } else {
                                         _showSnackBar(
-                                          '❗重复附件：${file.path}',
-                                          _red,
+                                          '😵‍💫重复附件：${file.path}',
+                                          _yellow,
                                           const Duration(seconds: 3),
                                         );
                                       }
                                     } else {
                                       _showSnackBar(
                                         '取消选择附件',
-                                        _green,
+                                        null,
                                         const Duration(seconds: 1),
                                       );
                                     }
@@ -337,42 +352,59 @@ class _ComposePageState extends State<ComposePage> {
                                               fontSize: 16,
                                             ),
                                           )
-                                        : ListView.builder(
-                                            shrinkWrap: true,
-                                            itemCount: _files.length,
-                                            itemBuilder: (context, index) {
-                                              final filepath = _files[index];
-                                              return ListTile(
-                                                title: Text(
-                                                  filepath,
-                                                  style: const TextStyle(
-                                                    color: Colors.grey,
-                                                    fontSize: 14,
-                                                  ),
-                                                  textAlign: TextAlign.left,
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '已选择 ${_filesTotal.toStringAsFixed(1)}MB',
+                                                style: const TextStyle(
+                                                  fontSize: 16,
                                                 ),
-                                                trailing: IconButton(
-                                                  icon: const Icon(
-                                                    Icons.clear_rounded,
-                                                  ),
-                                                  splashRadius: 20,
-                                                  onPressed: () {
-                                                    _showSnackBar(
-                                                      '已移除：${_files[index]}',
-                                                      _green,
-                                                      const Duration(
-                                                        seconds: 2,
+                                              ),
+                                              ListView.builder(
+                                                shrinkWrap: true,
+                                                itemCount: _files.length,
+                                                itemBuilder: (context, index) {
+                                                  final file = _files[index];
+                                                  return ListTile(
+                                                    title: Text(
+                                                      file.path,
+                                                      style: const TextStyle(
+                                                        color: Colors.grey,
+                                                        fontSize: 14,
                                                       ),
-                                                    );
-                                                    setState(() {
-                                                      _files.removeAt(
-                                                        index,
-                                                      );
-                                                    });
-                                                  },
-                                                ),
-                                              );
-                                            },
+                                                      textAlign: TextAlign.left,
+                                                    ),
+                                                    trailing: IconButton(
+                                                      icon: const Icon(
+                                                        Icons.clear_rounded,
+                                                      ),
+                                                      splashRadius: 20,
+                                                      onPressed: () {
+                                                        final len = _files[
+                                                                    index]
+                                                                .lengthSync() /
+                                                            1048576;
+                                                        _showSnackBar(
+                                                          '已移除：${_files[index].path}',
+                                                          null,
+                                                          const Duration(
+                                                            seconds: 2,
+                                                          ),
+                                                        );
+                                                        setState(() {
+                                                          _filesTotal -= len;
+                                                          _files.removeAt(
+                                                            index,
+                                                          );
+                                                        });
+                                                      },
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ],
                                           ),
                                   ),
                                 ),

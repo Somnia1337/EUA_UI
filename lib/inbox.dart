@@ -143,6 +143,7 @@ class MailboxPage extends StatefulWidget {
 
 class _MailboxPageState extends State<MailboxPage> {
   final _messagesFetchListener = MessagesFetch.rustSignalStream;
+  final _rustResultListener = RustResult.rustSignalStream;
   late String mailbox;
 
   bool _triedFetching = false;
@@ -152,6 +153,8 @@ class _MailboxPageState extends State<MailboxPage> {
   late Email _selectedEmail;
 
   List<Email> messages = [];
+
+  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
 
   final _style = const TextStyle(
     fontSize: 20,
@@ -169,13 +172,34 @@ class _MailboxPageState extends State<MailboxPage> {
     });
     pb.Action(action: 4).sendSignalToRust();
     MailboxSelection(mailbox: mailbox).sendSignalToRust();
-    final messagesFetch = (await _messagesFetchListener.first).message;
-    messages = messagesFetch.emails;
+    final fetchMessagesResult = (await _rustResultListener.first).message;
+    if (fetchMessagesResult.result) {
+      final messagesFetch = (await _messagesFetchListener.first).message;
+      messages = messagesFetch.emails;
+    } else {
+      _showSnackBar(fetchMessagesResult.info, _red, const Duration(seconds: 3));
+    }
     setState(() {
       _isFetching = false;
       _triedFetching = true;
       _existsMessage = messages.isNotEmpty;
     });
+  }
+
+  void _showSnackBar(String message, Color color, Duration duration) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: TextStyle(
+            fontSize: 18,
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        duration: duration,
+      ),
+    );
   }
 
   @override

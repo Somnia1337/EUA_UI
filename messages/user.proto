@@ -7,8 +7,8 @@ package user;
 // 0: Login
 // 1: Logout
 // 2: Send
-// 3: Fetch: mailboxes
-// 4: Fetch: email
+// 3: Fetch mailboxes
+// 4: Fetch email
 message Action {
   int32 action = 1;
 }
