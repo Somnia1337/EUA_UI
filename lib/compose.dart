@@ -1,6 +1,7 @@
 //! 展示已发送邮件的附件
 
 import 'dart:io';
+import 'dart:math';
 
 import 'package:eua_ui/inbox.dart';
 import 'package:eua_ui/main.dart';
@@ -401,18 +402,14 @@ class _ComposePageState extends State<ComposePage> {
                           ConstrainedBox(
                             constraints: BoxConstraints(
                               maxWidth: 550,
-                              maxHeight: _attachments.length == 1
-                                  ? 100
-                                  : _attachments.length == 2
-                                      ? 120
-                                      : 140,
+                              maxHeight: 80 + min(_attachments.length, 3) * 20,
                             ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 IconButton(
                                   icon: const Icon(
-                                    Icons.add_link_outlined,
+                                    Icons.attachment,
                                   ),
                                   tooltip: '添加附件',
                                   splashRadius: 20,

@@ -107,12 +107,14 @@ class _SettingsPageState extends State<SettingsPage> {
       emailAddr: _emailAddrController.text,
       password: _passwordController.text,
     ).sendSignalToRust();
-    userEmailAddr = _emailAddrController.text;
-    SettingsPage.userEmailAddr = userEmailAddr;
 
     final loginResult = (await _rustResultListener.first).message;
     if (loginResult.result) {
       _showSnackBar('🤗登录成功', null, const Duration(seconds: 1));
+      setState(() {
+        userEmailAddr = _emailAddrController.text;
+        SettingsPage.userEmailAddr = userEmailAddr;
+      });
       return true;
     }
     _showSnackBar(
@@ -273,14 +275,17 @@ class _SettingsPageState extends State<SettingsPage> {
           icon: Icon(
             currentBrightness == Brightness.light
                 ? Icons.wb_sunny_outlined
-                : Icons.nightlight_round_outlined,
+                : Icons.nightlight_outlined,
           ),
         ),
         IconButton(
           onPressed: _showColorPickerDialog,
           tooltip: '颜色',
           splashRadius: 20,
-          icon: const Icon(Icons.color_lens_outlined),
+          icon: Icon(
+            Icons.color_lens_outlined,
+            color: _pickerColor,
+          ),
         ),
       ],
     );

@@ -4,6 +4,7 @@
 import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:eua_ui/messages/user.pbserver.dart';
+import 'package:eua_ui/settings.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +22,7 @@ class _InboxPageState extends State<InboxPage> {
 
   bool _isFetchingMailboxes = false;
   bool _isMailboxesFetched = false;
+  bool _isNetease = false;
 
   List<String> _mailboxes = [];
 
@@ -34,6 +36,10 @@ class _InboxPageState extends State<InboxPage> {
   void _handleLoginStatusChange() {
     final loginStatusNotifier =
         Provider.of<LoginStatusNotifier>(context, listen: false);
+    setState(() {
+      _isNetease = SettingsPage.userEmailAddr.endsWith('163.com') ||
+          SettingsPage.userEmailAddr.endsWith('126.com');
+    });
     if (!loginStatusNotifier.isLoggedIn) {
       _reset();
     }
@@ -85,50 +91,62 @@ class _InboxPageState extends State<InboxPage> {
 
   @override
   Widget build(BuildContext context) {
+    const neteaseInfo = Center(
+      child: Text(
+        '😵由于网易邮箱服务器的限制，\n未经认证的第三方用户代理无法收取邮件',
+        style: TextStyle(
+          fontSize: 20,
+        ),
+      ),
+    );
+
     return Scaffold(
-      floatingActionButton: _isFetchingMailboxes || _isMailboxesFetched
-          ? null
-          : FloatingActionButton(
-              onPressed: _fetchMailboxes,
-              heroTag: 'inboxPageFloatingActionButton',
-              tooltip: '获取收件箱',
-              child: const Icon(Icons.move_to_inbox_outlined),
-            ),
-      body: _isMailboxesFetched
-          ? Row(
-              children: [
-                NavigationRail(
-                  selectedIndex: _selectedMailbox,
-                  onDestinationSelected: _onItemTapped,
-                  labelType: NavigationRailLabelType.all,
-                  destinations: _mailboxes.map((mailbox) {
-                    return NavigationRailDestination(
-                      icon: Icon(_getMailboxIcon(mailbox)[0]),
-                      selectedIcon: Icon(_getMailboxIcon(mailbox)[1]),
-                      label: Text(mailbox),
-                    );
-                  }).toList(),
+      floatingActionButton:
+          _isNetease || _isFetchingMailboxes || _isMailboxesFetched
+              ? null
+              : FloatingActionButton(
+                  onPressed: _fetchMailboxes,
+                  heroTag: 'inboxPageFloatingActionButton',
+                  tooltip: '获取收件箱',
+                  child: const Icon(Icons.move_to_inbox_outlined),
                 ),
-                Expanded(
-                  child: IndexedStack(
-                    index: _selectedMailbox,
-                    children: _mailboxes.map((mailbox) {
-                      return Center(
-                        child: MailboxPage(mailbox: mailbox),
-                      );
-                    }).toList(),
+      body: _isNetease
+          ? neteaseInfo
+          : _isMailboxesFetched
+              ? Row(
+                  children: [
+                    NavigationRail(
+                      selectedIndex: _selectedMailbox,
+                      onDestinationSelected: _onItemTapped,
+                      labelType: NavigationRailLabelType.all,
+                      destinations: _mailboxes.map((mailbox) {
+                        return NavigationRailDestination(
+                          icon: Icon(_getMailboxIcon(mailbox)[0]),
+                          selectedIcon: Icon(_getMailboxIcon(mailbox)[1]),
+                          label: Text(mailbox),
+                        );
+                      }).toList(),
+                    ),
+                    Expanded(
+                      child: IndexedStack(
+                        index: _selectedMailbox,
+                        children: _mailboxes.map((mailbox) {
+                          return Center(
+                            child: MailboxPage(mailbox: mailbox),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                )
+              : Center(
+                  child: Text(
+                    _isFetchingMailboxes ? '获取中...' : '请手动获取收件箱',
+                    style: const TextStyle(
+                      fontSize: 20,
+                    ),
                   ),
                 ),
-              ],
-            )
-          : Center(
-              child: Text(
-                _isFetchingMailboxes ? '获取中...' : '请手动获取收件箱',
-                style: const TextStyle(
-                  fontSize: 20,
-                ),
-              ),
-            ),
     );
   }
 }
