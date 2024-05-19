@@ -19,7 +19,6 @@ class _InboxPageState extends State<InboxPage> {
   final _mailboxesFetchListener = MailboxesFetch.rustSignalStream;
 
   int _selectedMailbox = 0;
-
   bool _isFetchingMailboxes = false;
   bool _isMailboxesFetched = false;
   bool _isNetease = false;
@@ -29,6 +28,7 @@ class _InboxPageState extends State<InboxPage> {
   @override
   void initState() {
     super.initState();
+
     Provider.of<LoginStatusNotifier>(context, listen: false)
         .addListener(_handleLoginStatusChange);
   }
@@ -36,19 +36,21 @@ class _InboxPageState extends State<InboxPage> {
   void _handleLoginStatusChange() {
     final loginStatusNotifier =
         Provider.of<LoginStatusNotifier>(context, listen: false);
+
     setState(() {
       _isNetease = SettingsPage.userEmailAddr.endsWith('163.com') ||
           SettingsPage.userEmailAddr.endsWith('126.com');
     });
+
     if (!loginStatusNotifier.isLoggedIn) {
       _reset();
     }
   }
 
   void _reset() {
-    _selectedMailbox = 0;
-    _mailboxes = [];
     setState(() {
+      _selectedMailbox = 0;
+      _mailboxes.clear();
       _isMailboxesFetched = false;
     });
   }
@@ -60,14 +62,21 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   Future<void> _fetchMailboxes() async {
+    // Send signal
+    pb.Action(action: 3).sendSignalToRust();
+
+    // Wait for Rust
     setState(() {
       _isFetchingMailboxes = true;
     });
-    pb.Action(action: 3).sendSignalToRust();
-    final mailboxes = (await _mailboxesFetchListener.first).message;
-    _mailboxes = mailboxes.mailboxes;
+    final mailboxesFetched = (await _mailboxesFetchListener.first).message;
     setState(() {
       _isFetchingMailboxes = false;
+    });
+
+    // Handle result
+    _mailboxes = mailboxesFetched.mailboxes;
+    setState(() {
       _isMailboxesFetched = true;
     });
   }
@@ -100,16 +109,35 @@ class _InboxPageState extends State<InboxPage> {
       ),
     );
 
+    final fetchMailboxesButton = FloatingActionButton(
+      onPressed: _fetchMailboxes,
+      heroTag: 'inboxPageFloatingActionButton',
+      tooltip: '获取收件箱',
+      child: const Icon(Icons.move_to_inbox_outlined),
+    );
+
+    final mailboxDestinations = _mailboxes.map((mailbox) {
+      return NavigationRailDestination(
+        icon: Icon(_getMailboxIcon(mailbox)[0]),
+        selectedIcon: Icon(_getMailboxIcon(mailbox)[1]),
+        label: Text(mailbox),
+      );
+    }).toList();
+
+    final fetchInfo = Center(
+      child: Text(
+        _isFetchingMailboxes ? '获取中...' : '请手动获取收件箱',
+        style: const TextStyle(
+          fontSize: 20,
+        ),
+      ),
+    );
+
     return Scaffold(
       floatingActionButton:
           _isNetease || _isFetchingMailboxes || _isMailboxesFetched
               ? null
-              : FloatingActionButton(
-                  onPressed: _fetchMailboxes,
-                  heroTag: 'inboxPageFloatingActionButton',
-                  tooltip: '获取收件箱',
-                  child: const Icon(Icons.move_to_inbox_outlined),
-                ),
+              : fetchMailboxesButton,
       body: _isNetease
           ? neteaseInfo
           : _isMailboxesFetched
@@ -119,13 +147,7 @@ class _InboxPageState extends State<InboxPage> {
                       selectedIndex: _selectedMailbox,
                       onDestinationSelected: _onItemTapped,
                       labelType: NavigationRailLabelType.all,
-                      destinations: _mailboxes.map((mailbox) {
-                        return NavigationRailDestination(
-                          icon: Icon(_getMailboxIcon(mailbox)[0]),
-                          selectedIcon: Icon(_getMailboxIcon(mailbox)[1]),
-                          label: Text(mailbox),
-                        );
-                      }).toList(),
+                      destinations: mailboxDestinations,
                     ),
                     Expanded(
                       child: IndexedStack(
@@ -139,20 +161,14 @@ class _InboxPageState extends State<InboxPage> {
                     ),
                   ],
                 )
-              : Center(
-                  child: Text(
-                    _isFetchingMailboxes ? '获取中...' : '请手动获取收件箱',
-                    style: const TextStyle(
-                      fontSize: 20,
-                    ),
-                  ),
-                ),
+              : fetchInfo,
     );
   }
 }
 
 class MailboxPage extends StatefulWidget {
   const MailboxPage({required this.mailbox, super.key});
+
   final String mailbox;
 
   @override
@@ -162,49 +178,59 @@ class MailboxPage extends StatefulWidget {
 class _MailboxPageState extends State<MailboxPage> {
   final _messagesFetchListener = MessagesFetch.rustSignalStream;
   final _rustResultListener = RustResult.rustSignalStream;
-  late String mailbox;
 
   bool _triedFetching = false;
   bool _existsMessage = false;
   bool _isFetching = false;
   bool _isReadingDetail = false;
-  Email? _selectedEmail;
-
-  List<Email> messages = [];
-
   final _red = const Color.fromRGBO(233, 95, 89, 0.8);
-
   final _style = const TextStyle(
     fontSize: 20,
   );
 
+  late String mailbox;
+  Email? _selectedEmail;
+  List<Email> emails = [];
+
   @override
   void initState() {
     super.initState();
+
     mailbox = widget.mailbox;
   }
 
   Future<void> _fetchMessages() async {
+    // Send signals
+    pb.Action(action: 4).sendSignalToRust();
+    MailboxSelection(mailbox: mailbox).sendSignalToRust();
+
+    // Wait for Rust
     setState(() {
       _isFetching = true;
     });
-    pb.Action(action: 4).sendSignalToRust();
-    MailboxSelection(mailbox: mailbox).sendSignalToRust();
     final fetchMessagesResult = (await _rustResultListener.first).message;
-    if (fetchMessagesResult.result) {
-      final messagesFetch = (await _messagesFetchListener.first).message;
-      messages = messagesFetch.emails;
-    } else {
-      _showSnackBar(fetchMessagesResult.info, _red, const Duration(seconds: 3));
-    }
     setState(() {
       _isFetching = false;
+    });
+
+    // Handle result
+    if (fetchMessagesResult.result) {
+      final messagesFetch = (await _messagesFetchListener.first).message;
+      emails = messagesFetch.emails;
+    } else {
+      _showSnackBar(
+        '下载失败: ${fetchMessagesResult.info}',
+        _red,
+        const Duration(seconds: 3),
+      );
+    }
+    setState(() {
       _triedFetching = true;
-      _existsMessage = messages.isNotEmpty;
+      _existsMessage = emails.isNotEmpty;
     });
   }
 
-  void _showSnackBar(String message, Color color, Duration duration) {
+  void _showSnackBar(String message, Color? color, Duration duration) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -224,7 +250,7 @@ class _MailboxPageState extends State<MailboxPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('收件箱：$mailbox'),
+        title: Text('收件箱: $mailbox'),
       ),
       floatingActionButton: _isFetching || _isReadingDetail
           ? null
@@ -269,9 +295,9 @@ class _MailboxPageState extends State<MailboxPage> {
                                           padding: const EdgeInsets.all(20),
                                           child: ListView.builder(
                                             shrinkWrap: true,
-                                            itemCount: messages.length,
+                                            itemCount: emails.length,
                                             itemBuilder: (context, index) {
-                                              final email = messages[index];
+                                              final email = emails[index];
                                               return ListTile(
                                                 title: Text(email.subject),
                                                 subtitle: Text(
@@ -342,7 +368,7 @@ class EmailDetailScreen extends StatelessWidget {
             ),
             Text.rich(
               TextSpan(
-                text: '附件: \n',
+                text: '附件:\n',
                 style:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 children: email.attachments.map((attachment) {

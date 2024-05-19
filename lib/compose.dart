@@ -96,7 +96,11 @@ class _ComposePageState extends State<ComposePage> {
       SnackBar(
         content: Text(
           message,
-          style: TextStyle(fontSize: 16, color: color),
+          style: TextStyle(
+            fontSize: 18,
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         duration: duration,
       ),
@@ -134,9 +138,9 @@ class _ComposePageState extends State<ComposePage> {
       });
     } else {
       _showSnackBar(
-        '😥邮件发送失败：${sendResult.info}',
+        '😥邮件发送失败: ${sendResult.info}',
         _red,
-        const Duration(seconds: 5),
+        const Duration(seconds: 3),
       );
     }
   }
@@ -169,7 +173,7 @@ class _ComposePageState extends State<ComposePage> {
           }
         } else {
           _showSnackBar(
-            '😵‍💫重复附件：${file.path}',
+            '😵‍💫重复附件: ${file.path}',
             _yellow,
             const Duration(seconds: 2),
           );
@@ -190,7 +194,7 @@ class _ComposePageState extends State<ComposePage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('提示'),
-          content: const Text('要保存草稿吗？'),
+          content: const Text('是否保存草稿？'),
           actions: [
             TextButton(
               onPressed: () {
@@ -343,10 +347,10 @@ class _ComposePageState extends State<ComposePage> {
                   onPressed: () {
                     final len = _attachments[index].lengthSync() / 1048576;
                     _showSnackBar(
-                      '已移除：${_attachments[index].path}',
+                      '已移除: ${_attachments[index].path}',
                       null,
                       const Duration(
-                        seconds: 2,
+                        seconds: 1,
                       ),
                     );
                     setState(() {
@@ -362,6 +366,52 @@ class _ComposePageState extends State<ComposePage> {
           ),
         ),
       ],
+    );
+
+    final addAttachmentButton = IconButton(
+      icon: const Icon(
+        Icons.attachment,
+      ),
+      tooltip: '添加附件',
+      splashRadius: 20,
+      onPressed: _pickFile,
+      alignment: Alignment.topLeft,
+    );
+    const attachmentInfo = Text(
+      '由于服务器限制，附件的总大小不能超过 50MB',
+      style: TextStyle(
+        fontSize: 16,
+      ),
+    );
+
+    final sentEmailList = ListView.builder(
+      shrinkWrap: true,
+      itemCount: _sentEmails.length,
+      itemBuilder: (context, index) {
+        final email = _sentEmails[index];
+        return ListTile(
+          title: Text(
+            email.subject.isNotEmpty ? email.subject : '[无主题]',
+          ),
+          subtitle: Text(
+            '收件人: ${email.to}',
+          ),
+          onTap: () {
+            setState(() {
+              _selectedEmail = email;
+              _isReadingDetail = true;
+            });
+          },
+        );
+      },
+    );
+    const noEmailSentInfo = Center(
+      child: Text(
+        '还未发送过邮件',
+        style: TextStyle(
+          fontSize: 20,
+        ),
+      ),
     );
 
     return Scaffold(
@@ -407,25 +457,12 @@ class _ComposePageState extends State<ComposePage> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.attachment,
-                                  ),
-                                  tooltip: '添加附件',
-                                  splashRadius: 20,
-                                  onPressed: _pickFile,
-                                  alignment: Alignment.topLeft,
-                                ),
+                                addAttachmentButton,
                                 Expanded(
                                   child: Padding(
                                     padding: const EdgeInsets.all(8),
                                     child: _attachments.isEmpty
-                                        ? const Text(
-                                            '由于服务器限制，附件的总大小不能超过 50MB',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                            ),
-                                          )
+                                        ? attachmentInfo
                                         : attachmentList,
                                   ),
                                 ),
@@ -461,42 +498,13 @@ class _ComposePageState extends State<ComposePage> {
                                   Expanded(
                                     child: Padding(
                                       padding: const EdgeInsets.all(20),
-                                      child: ListView.builder(
-                                        shrinkWrap: true,
-                                        itemCount: _sentEmails.length,
-                                        itemBuilder: (context, index) {
-                                          final email = _sentEmails[index];
-                                          return ListTile(
-                                            title: Text(
-                                              email.subject.isNotEmpty
-                                                  ? email.subject
-                                                  : '[无主题]',
-                                            ),
-                                            subtitle: Text(
-                                              '收件人: ${email.to}',
-                                            ),
-                                            onTap: () {
-                                              setState(() {
-                                                _selectedEmail = email;
-                                                _isReadingDetail = true;
-                                              });
-                                            },
-                                          );
-                                        },
-                                      ),
+                                      child: sentEmailList,
                                     ),
                                   ),
                                 ],
                               ),
                             )
-                          : const Center(
-                              child: Text(
-                                '还未发送过邮件',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                ),
-                              ),
-                            ),
+                          : noEmailSentInfo,
                     ),
     );
   }

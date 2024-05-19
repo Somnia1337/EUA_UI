@@ -1,8 +1,17 @@
 import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:eua_ui/messages/user.pbserver.dart';
+import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+class ColorChangeNotifier extends ChangeNotifier {
+  late Color seedColor;
+
+  void updateColor({required Color seedColor}) {
+    this.seedColor = seedColor;
+    notifyListeners();
+  }
+}
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -12,7 +21,9 @@ class SettingsPage extends StatefulWidget {
     this.onLoggingProcessChanged,
     this.onToggleDarkMode,
   });
+
   static String userEmailAddr = '';
+
   final void Function({required bool isLoggedIn})? onLoginStatusChanged;
   final void Function({required Color seedColor})? onColorChanged;
   final void Function({required bool isLogging})? onLoggingProcessChanged;
@@ -23,28 +34,27 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  String userEmailAddr = '';
+
+  bool _isLoggedIn = false;
+  bool _isLogging = false;
+  bool _isPasswordVisible = false;
+  final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
+  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
+  Color _pickerColor = const Color.fromRGBO(56, 132, 255, 1);
+
   final _emailAddrController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
 
   final _rustResultListener = RustResult.rustSignalStream;
 
-  final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
-  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
-
-  String userEmailAddr = '';
-
-  bool _isLoggedIn = false;
-  bool _isLogging = false;
-  bool _isPasswordVisible = false;
-
-  Color _pickerColor = const Color.fromRGBO(56, 132, 255, 1);
-
   @override
   void dispose() {
     _emailAddrController.dispose();
     _passwordFocusNode.dispose();
     _passwordController.dispose();
+
     super.dispose();
   }
 
@@ -55,6 +65,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (widget.onLoggingProcessChanged != null) {
       widget.onLoggingProcessChanged!(isLogging: true);
     }
+
     if (!_isLoggedIn) {
       final loginResult = await login();
       if (loginResult) {
@@ -74,8 +85,16 @@ class _SettingsPageState extends State<SettingsPage> {
         }
       }
     } else {
-      _showLogoutDialog(context);
+      if (await _showLogoutDialog(context) && await logout()) {
+        setState(() {
+          _isLoggedIn = false;
+        });
+        if (widget.onLoginStatusChanged != null) {
+          widget.onLoginStatusChanged!(isLoggedIn: false);
+        }
+      }
     }
+
     setState(() {
       _isLogging = false;
     });
@@ -89,16 +108,16 @@ class _SettingsPageState extends State<SettingsPage> {
       _showSnackBar(
         '😵‍💫"邮箱"和"授权码"是必填字段！',
         _yellow,
-        const Duration(seconds: 3),
+        const Duration(seconds: 2),
       );
       return Future.value(false);
     }
     if (_emailAddrController.text == '') {
-      _showSnackBar('😵‍💫"邮箱"是必填字段！', _yellow, const Duration(seconds: 3));
+      _showSnackBar('😵‍💫"邮箱"是必填字段！', _yellow, const Duration(seconds: 2));
       return Future.value(false);
     }
     if (_passwordController.text == '') {
-      _showSnackBar('😵‍💫"授权码"是必填字段！', _yellow, const Duration(seconds: 3));
+      _showSnackBar('😵‍💫"授权码"是必填字段！', _yellow, const Duration(seconds: 2));
       return Future.value(false);
     }
 
@@ -118,7 +137,7 @@ class _SettingsPageState extends State<SettingsPage> {
       return true;
     }
     _showSnackBar(
-      '😥登录失败：${loginResult.info}',
+      '😥登录失败: ${loginResult.info}',
       _red,
       const Duration(seconds: 3),
     );
@@ -133,9 +152,9 @@ class _SettingsPageState extends State<SettingsPage> {
       return true;
     }
     _showSnackBar(
-      '😥退出登录失败：${logoutResult.info}',
+      '😥退出登录失败: ${logoutResult.info}',
       _red,
-      const Duration(seconds: 1),
+      const Duration(seconds: 3),
     );
     return false;
   }
@@ -145,16 +164,38 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          content: ColorPicker(
-            pickerColor: _pickerColor,
-            onColorChanged: (color) {
-              if (widget.onColorChanged != null) {
-                widget.onColorChanged!(seedColor: color);
-              }
-              setState(() {
-                _pickerColor = color;
-              });
-            },
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 300, maxWidth: 300),
+            child: ColorPicker(
+              color: _pickerColor,
+              onColorChanged: (color) {
+                if (widget.onColorChanged != null) {
+                  widget.onColorChanged!(seedColor: color);
+                }
+                setState(() {
+                  _pickerColor = color;
+                });
+              },
+              borderRadius: 30,
+              spacing: 8,
+              runSpacing: 8,
+              wheelDiameter: 130,
+              wheelWidth: 12,
+              wheelSquareBorderRadius: 5,
+              heading: Text(
+                '选择颜色',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              selectedPickerTypeColor: Theme.of(context).colorScheme.primary,
+              pickersEnabled: const <ColorPickerType, bool>{
+                ColorPickerType.both: false,
+                ColorPickerType.primary: false,
+                ColorPickerType.accent: false,
+                ColorPickerType.bw: false,
+                ColorPickerType.custom: false,
+                ColorPickerType.wheel: true,
+              },
+            ),
           ),
           actions: [
             TextButton(
@@ -180,35 +221,23 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog<void>(
+  Future<bool> _showLogoutDialog(BuildContext context) async {
+    final confirmation = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
-        final localContext = context;
         return AlertDialog(
           title: const Text('提示'),
           content: const Text('确定要退出登录吗？'),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(context).pop(false);
               },
               child: const Text('取消'),
             ),
             TextButton(
-              onPressed: () async {
-                if (await logout()) {
-                  setState(() {
-                    _isLoggedIn = false;
-                  });
-                  if (widget.onLoginStatusChanged != null) {
-                    widget.onLoginStatusChanged!(isLoggedIn: false);
-                  }
-                }
-                if (!localContext.mounted) {
-                  return;
-                }
-                Navigator.of(localContext).pop();
+              onPressed: () {
+                Navigator.of(context).pop(true);
               },
               child: const Text('确定'),
             ),
@@ -216,6 +245,8 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       },
     );
+
+    return confirmation ?? false;
   }
 
   void _showSnackBar(String message, Color? color, Duration duration) {
@@ -246,8 +277,55 @@ class _SettingsPageState extends State<SettingsPage> {
     const sizedBoxBig = SizedBox(height: 20);
     const sizedBoxSmall = SizedBox(height: 12);
 
-    const textStyle = TextStyle(
-      fontSize: 18,
+    final emailAddrInputField = TextFormField(
+      controller: _emailAddrController,
+      decoration: InputDecoration(
+        labelText: '邮箱',
+        border: const UnderlineInputBorder(),
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.clear_rounded),
+          splashRadius: 20,
+          onPressed: () {
+            _emailAddrController.clear();
+            _passwordController.clear();
+          },
+        ),
+      ),
+      keyboardType: TextInputType.emailAddress,
+      onFieldSubmitted: (value) {
+        FocusScope.of(context).requestFocus(_passwordFocusNode);
+      },
+    );
+    final passwordInputField = TextFormField(
+      controller: _passwordController,
+      obscureText: !_isPasswordVisible,
+      focusNode: _passwordFocusNode,
+      decoration: InputDecoration(
+        labelText: '授权码 (不是邮箱密码!!)',
+        border: const UnderlineInputBorder(),
+        suffixIcon: IconButton(
+          icon: Icon(
+            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+          ),
+          splashRadius: 20,
+          onPressed: () {
+            setState(() {
+              _isPasswordVisible = !_isPasswordVisible;
+            });
+          },
+        ),
+      ),
+      onEditingComplete: _triggerLoginOrLogout,
+    );
+
+    final welcome = Padding(
+      padding: EdgeInsets.zero,
+      child: Text(
+        '欢迎 👋 $userEmailAddr',
+        style: const TextStyle(
+          fontSize: 20,
+        ),
+      ),
     );
 
     final logControlButton = IconButton(
@@ -305,7 +383,7 @@ class _SettingsPageState extends State<SettingsPage> {
         Padding(
           padding: EdgeInsets.zero,
           child: Text(
-            'v0.4.6-rc1',
+            'v0.4.6',
             style: TextStyle(
               fontSize: 16,
               fontFamily: 'Consolas',
@@ -326,93 +404,49 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
 
+    final customizationsAndInfo = Column(
+      children: [
+        logControlButton,
+        sizedBoxBig,
+        customizations,
+        sizedBoxSmall,
+        info,
+        sizedBoxSmall,
+        githubImage,
+      ],
+    );
+
     return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
+          children: [
             _isLoggedIn
                 ? Padding(
                     padding: EdgeInsets.zero,
                     child: Column(
-                      children: <Widget>[
-                        Padding(
-                          padding: EdgeInsets.zero,
-                          child: Text('欢迎 👋 $userEmailAddr', style: textStyle),
-                        ),
+                      children: [
+                        welcome,
                         sizedBoxSmall,
-                        logControlButton,
-                        sizedBoxBig,
-                        customizations,
-                        sizedBoxSmall,
-                        info,
-                        sizedBoxSmall,
-                        githubImage,
+                        customizationsAndInfo,
                       ],
                     ),
                   )
                 : Padding(
                     padding: EdgeInsets.zero,
                     child: Column(
-                      children: <Widget>[
+                      children: [
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 250),
-                          child: TextFormField(
-                            controller: _emailAddrController,
-                            decoration: InputDecoration(
-                              labelText: '邮箱',
-                              border: const UnderlineInputBorder(),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.clear_rounded),
-                                splashRadius: 20,
-                                onPressed: () {
-                                  _emailAddrController.clear();
-                                  _passwordController.clear();
-                                },
-                              ),
-                            ),
-                            keyboardType: TextInputType.emailAddress,
-                            onFieldSubmitted: (value) {
-                              FocusScope.of(context)
-                                  .requestFocus(_passwordFocusNode);
-                            },
-                          ),
+                          child: emailAddrInputField,
                         ),
                         sizedBoxSmall,
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 250),
-                          child: TextFormField(
-                            controller: _passwordController,
-                            obscureText: !_isPasswordVisible,
-                            focusNode: _passwordFocusNode,
-                            decoration: InputDecoration(
-                              labelText: '授权码 (不是邮箱密码!!)',
-                              border: const UnderlineInputBorder(),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _isPasswordVisible
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                                splashRadius: 20,
-                                onPressed: () {
-                                  setState(() {
-                                    _isPasswordVisible = !_isPasswordVisible;
-                                  });
-                                },
-                              ),
-                            ),
-                            onEditingComplete: _triggerLoginOrLogout,
-                          ),
+                          child: passwordInputField,
                         ),
                         sizedBoxSmall,
-                        logControlButton,
-                        sizedBoxBig,
-                        customizations,
-                        sizedBoxSmall,
-                        info,
-                        sizedBoxSmall,
-                        githubImage,
+                        customizationsAndInfo,
                       ],
                     ),
                   ),
@@ -420,14 +454,5 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
-  }
-}
-
-class ColorChangeNotifier extends ChangeNotifier {
-  late Color seedColor;
-
-  void updateColor({required Color seedColor}) {
-    this.seedColor = seedColor;
-    notifyListeners();
   }
 }
