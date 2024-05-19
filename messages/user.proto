@@ -8,7 +8,8 @@ package user;
 // 1: Logout
 // 2: Send
 // 3: Fetch mailboxes
-// 4: Fetch email
+// 4: Fetch email metadata
+// 5: Fetch email details
 message Action {
   int32 action = 1;
 }
@@ -20,7 +21,7 @@ message UserProto {
 }
 
 // [RINF:DART-SIGNAL]
-message Email {
+message NewEmail {
   string from = 1;
   string to = 2;
   string subject = 3;
@@ -30,8 +31,14 @@ message Email {
 }
 
 // [RINF:DART-SIGNAL]
-message MailboxSelection {
+message MailboxRequest {
   string mailbox = 1;
+}
+
+// [RINF:DART-SIGNAL]
+message EmailDetailRequest {
+  string uid = 1;
+  string folder_path = 2;
 }
 
 // * Rust -> Dart
@@ -48,6 +55,20 @@ message MailboxesFetch {
 }
 
 // [RINF:RUST-SIGNAL]
-message MessagesFetch {
-  repeated Email emails = 1;
+message EmailMetadataFetch {
+  repeated EmailMetadata email_metadatas = 1;
+}
+
+message EmailMetadata {
+  string uid = 1;
+  string from = 2;
+  string to = 3;
+  string subject = 4;
+  string date = 5;
+}
+
+// [RINF:RUST-SIGNAL]
+message EmailDetailFetch {
+  repeated string attachments = 1;
+  string body = 2;
 }

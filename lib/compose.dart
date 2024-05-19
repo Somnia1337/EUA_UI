@@ -1,9 +1,6 @@
-//! 展示已发送邮件的附件
-
 import 'dart:io';
 import 'dart:math';
 
-import 'package:eua_ui/inbox.dart';
 import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:eua_ui/messages/user.pbserver.dart';
@@ -31,8 +28,8 @@ class _ComposePageState extends State<ComposePage> {
   final List<File> _attachments = [];
   var _attachmentsLengthSum = 0.0;
 
-  final List<Email> _sentEmails = [];
-  Email? _selectedEmail;
+  final List<NewEmail> _sentEmails = [];
+  NewEmail? _selectedEmail;
 
   final _toInputController = TextEditingController();
   final _subjectInputController = TextEditingController();
@@ -110,7 +107,7 @@ class _ComposePageState extends State<ComposePage> {
   Future<void> _sendEmail() async {
     // Send signals
     pb.Action(action: 2).sendSignalToRust();
-    final email = Email(
+    final newEmail = NewEmail(
       from: SettingsPage.userEmailAddr,
       to: _toInputController.text,
       subject: _subjectInputController.text,
@@ -130,7 +127,7 @@ class _ComposePageState extends State<ComposePage> {
 
     // Handle result
     if (sendResult.result) {
-      _sentEmails.add(email);
+      _sentEmails.add(newEmail);
       _clearComposingFields();
       setState(() {
         _isComposing = false;
@@ -265,8 +262,8 @@ class _ComposePageState extends State<ComposePage> {
       ),
     );
 
-    final emailDetail = EmailDetailScreen(
-      email: _selectedEmail ?? Email(),
+    final emailDetail = NewEmailDetailScreen(
+      email: _selectedEmail ?? NewEmail(),
       onBack: () {
         setState(() {
           _isReadingDetail = false;
@@ -506,6 +503,67 @@ class _ComposePageState extends State<ComposePage> {
                             )
                           : noEmailSentInfo,
                     ),
+    );
+  }
+}
+
+class NewEmailDetailScreen extends StatelessWidget {
+  const NewEmailDetailScreen({
+    super.key,
+    required this.email,
+    required this.onBack,
+  });
+  final NewEmail email;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('主题: ${email.subject}'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: onBack,
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '发件人: ${email.from}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              '收件人: ${email.to}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              '时间: ${email.date}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text.rich(
+              TextSpan(
+                text: '附件:\n',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                children: email.attachments.map((attachment) {
+                  return TextSpan(
+                    text: '$attachment\n',
+                    style: const TextStyle(fontSize: 16),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              email.body,
+              style: const TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

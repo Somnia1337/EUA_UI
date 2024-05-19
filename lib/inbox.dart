@@ -1,10 +1,12 @@
-//! 收取附件: 对常见类型予以显示，对所有类型可选保存.
-//! 不重复下载已经下载的邮件
+// TODO(Somnia1337): 已保存过附件的邮件可以直接打开
+// TODO(Somnia1337): 展示附件保存位置
 
+import 'package:eua_ui/detail.dart';
 import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:eua_ui/messages/user.pbserver.dart';
 import 'package:eua_ui/settings.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -176,12 +178,14 @@ class MailboxPage extends StatefulWidget {
 }
 
 class _MailboxPageState extends State<MailboxPage> {
-  final _messagesFetchListener = MessagesFetch.rustSignalStream;
+  final _emailMetadataFetchListener = EmailMetadataFetch.rustSignalStream;
+  final _emailDetailFetchListener = EmailDetailFetch.rustSignalStream;
   final _rustResultListener = RustResult.rustSignalStream;
 
   bool _triedFetching = false;
   bool _existsMessage = false;
-  bool _isFetching = false;
+  bool _isFetchingMetadata = false;
+  bool _isFetchingDetail = false;
   bool _isReadingDetail = false;
   final _red = const Color.fromRGBO(233, 95, 89, 0.8);
   final _style = const TextStyle(
@@ -189,8 +193,9 @@ class _MailboxPageState extends State<MailboxPage> {
   );
 
   late String mailbox;
-  Email? _selectedEmail;
-  List<Email> emails = [];
+  EmailMetadata? _selectedEmail;
+  EmailDetailFetch? _emailDetail;
+  List<EmailMetadata> emailMetadatas = [];
 
   @override
   void initState() {
@@ -199,24 +204,25 @@ class _MailboxPageState extends State<MailboxPage> {
     mailbox = widget.mailbox;
   }
 
-  Future<void> _fetchMessages() async {
+  Future<void> _fetchEmailMetadatas() async {
     // Send signals
     pb.Action(action: 4).sendSignalToRust();
-    MailboxSelection(mailbox: mailbox).sendSignalToRust();
+    MailboxRequest(mailbox: mailbox).sendSignalToRust();
 
     // Wait for Rust
     setState(() {
-      _isFetching = true;
+      _isFetchingMetadata = true;
     });
     final fetchMessagesResult = (await _rustResultListener.first).message;
     setState(() {
-      _isFetching = false;
+      _isFetchingMetadata = false;
     });
 
     // Handle result
     if (fetchMessagesResult.result) {
-      final messagesFetch = (await _messagesFetchListener.first).message;
-      emails = messagesFetch.emails;
+      final emailMetadataFetch =
+          (await _emailMetadataFetchListener.first).message;
+      emailMetadatas = emailMetadataFetch.emailMetadatas;
     } else {
       _showSnackBar(
         '下载失败: ${fetchMessagesResult.info}',
@@ -226,8 +232,53 @@ class _MailboxPageState extends State<MailboxPage> {
     }
     setState(() {
       _triedFetching = true;
-      _existsMessage = emails.isNotEmpty;
+      _existsMessage = emailMetadatas.isNotEmpty;
     });
+  }
+
+  Future<String?> _pickFolder() async {
+    final selectedFolder = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: '选择附件保存的位置',
+      lockParentWindow: true,
+    );
+
+    if (selectedFolder != null) {
+      return selectedFolder;
+    }
+    _showSnackBar('取消选择附件保存位置', null, const Duration(seconds: 1));
+    return null;
+  }
+
+  Future<bool> _fetchEmailDetail(
+    EmailMetadata emailMetadata,
+    String folderPath,
+  ) async {
+    // Send signals
+    pb.Action(action: 5).sendSignalToRust();
+    EmailDetailRequest(uid: emailMetadata.uid, folderPath: folderPath)
+        .sendSignalToRust();
+
+    // Wait for Rust
+    setState(() {
+      _isFetchingDetail = true;
+    });
+    final fetchMessagesResult = (await _rustResultListener.first).message;
+    setState(() {
+      _isFetchingDetail = false;
+    });
+
+    // Handle result
+    if (fetchMessagesResult.result) {
+      final emailDetailFetch = (await _emailDetailFetchListener.first).message;
+      _emailDetail = emailDetailFetch;
+      return true;
+    }
+    _showSnackBar(
+      '下载失败: ${fetchMessagesResult.info}',
+      _red,
+      const Duration(seconds: 3),
+    );
+    return false;
   }
 
   void _showSnackBar(String message, Color? color, Duration duration) {
@@ -252,11 +303,11 @@ class _MailboxPageState extends State<MailboxPage> {
       appBar: AppBar(
         title: Text('收件箱: $mailbox'),
       ),
-      floatingActionButton: _isFetching || _isReadingDetail
+      floatingActionButton: _isFetchingMetadata || _isReadingDetail
           ? null
           : FloatingActionButton(
               autofocus: true,
-              onPressed: _fetchMessages,
+              onPressed: _fetchEmailMetadatas,
               tooltip: _triedFetching ? '刷新' : '下载邮件',
               child: Icon(_triedFetching ? Icons.refresh : Icons.download),
             ),
@@ -266,8 +317,9 @@ class _MailboxPageState extends State<MailboxPage> {
           children: _isReadingDetail
               ? [
                   Expanded(
-                    child: EmailDetailScreen(
-                      email: _selectedEmail ?? Email(),
+                    child: EmailDetailPage(
+                      emailMetadata: _selectedEmail ?? EmailMetadata(),
+                      emailDetail: _emailDetail ?? EmailDetailFetch(),
                       onBack: () {
                         setState(() {
                           _isReadingDetail = false;
@@ -282,109 +334,64 @@ class _MailboxPageState extends State<MailboxPage> {
                         const BoxConstraints(maxHeight: 350, maxWidth: 400),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: _isFetching
+                      children: _isFetchingMetadata
                           ? [
-                              Text('下载中...', style: _style),
+                              Text('正在下载邮件...', style: _style),
                             ]
-                          : _triedFetching
-                              ? _existsMessage
-                                  ? [
-                                      Text('邮件列表', style: _style),
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(20),
-                                          child: ListView.builder(
-                                            shrinkWrap: true,
-                                            itemCount: emails.length,
-                                            itemBuilder: (context, index) {
-                                              final email = emails[index];
-                                              return ListTile(
-                                                title: Text(email.subject),
-                                                subtitle: Text(
-                                                  'From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}',
-                                                ),
-                                                onTap: () {
-                                                  setState(() {
-                                                    _selectedEmail = email;
-                                                    _isReadingDetail = true;
-                                                  });
+                          : _isFetchingDetail
+                              ? [
+                                  Text('正在下载附件...', style: _style),
+                                ]
+                              : _triedFetching
+                                  ? _existsMessage
+                                      ? [
+                                          Text('邮件列表', style: _style),
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(20),
+                                              child: ListView.builder(
+                                                shrinkWrap: true,
+                                                itemCount:
+                                                    emailMetadatas.length,
+                                                itemBuilder: (context, index) {
+                                                  final email =
+                                                      emailMetadatas[index];
+                                                  return ListTile(
+                                                    title: Text(email.subject),
+                                                    subtitle: Text(
+                                                      'From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}',
+                                                    ),
+                                                    onTap: () async {
+                                                      final folderPath =
+                                                          await _pickFolder();
+                                                      if (folderPath != null &&
+                                                          await _fetchEmailDetail(
+                                                            email,
+                                                            folderPath,
+                                                          )) {
+                                                        setState(() {
+                                                          _selectedEmail =
+                                                              email;
+                                                          _isReadingDetail =
+                                                              true;
+                                                        });
+                                                      }
+                                                    },
+                                                  );
                                                 },
-                                              );
-                                            },
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                    ]
+                                        ]
+                                      : [
+                                          Text('无邮件，可刷新重试', style: _style),
+                                        ]
                                   : [
-                                      Text('无邮件，可刷新重试', style: _style),
-                                    ]
-                              : [
-                                  Text('请手动下载邮件', style: _style),
-                                ],
+                                      Text('请手动下载邮件', style: _style),
+                                    ],
                     ),
                   ),
                 ],
-        ),
-      ),
-    );
-  }
-}
-
-class EmailDetailScreen extends StatelessWidget {
-  const EmailDetailScreen({
-    super.key,
-    required this.email,
-    required this.onBack,
-  });
-  final Email email;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('主题: ${email.subject}'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: onBack,
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '发件人: ${email.from}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              '收件人: ${email.to}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              '时间: ${email.date}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            Text.rich(
-              TextSpan(
-                text: '附件:\n',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                children: email.attachments.map((attachment) {
-                  return TextSpan(
-                    text: '$attachment\n',
-                    style: const TextStyle(fontSize: 16),
-                  );
-                }).toList(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              email.body,
-              style: const TextStyle(fontSize: 16),
-            ),
-          ],
         ),
       ),
     );

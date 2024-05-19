@@ -1,14 +1,14 @@
 use crate::messages::user::*;
 
 use std::{
+    collections::HashMap,
     error::Error,
     fs::{self, File},
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
     str,
 };
 
-use base64::prelude::*;
 use imap::{self, Connection, Session};
 use lettre::{
     message::{
@@ -27,11 +27,13 @@ pub async fn main_logic() {
     let mut user: Option<User> = None;
     let mut smtp_cli: Option<SmtpTransport> = None;
     let mut imap_cli: Option<Session<Connection>> = None;
+    let mut uid_to_mailbox_and_index: Option<HashMap<String, (String, usize)>> = None;
 
     let mut action_listener = Action::get_dart_signal_receiver();
     let mut user_proto_listener = UserProto::get_dart_signal_receiver();
-    let mut email_send_listener = Email::get_dart_signal_receiver();
-    let mut mailbox_selection_listener = MailboxSelection::get_dart_signal_receiver();
+    let mut new_email_listener = NewEmail::get_dart_signal_receiver();
+    let mut mailbox_request_listener = MailboxRequest::get_dart_signal_receiver();
+    let mut email_detail_request_listener = EmailDetailRequest::get_dart_signal_receiver();
 
     while let Some(dart_signal) = action_listener.recv().await {
         match dart_signal.message.action {
@@ -40,6 +42,7 @@ pub async fn main_logic() {
                 user = None;
                 smtp_cli = None;
                 imap_cli = None;
+                uid_to_mailbox_and_index = None;
 
                 // Build user
                 if let Some(user_proto) = user_proto_listener.recv().await {
@@ -83,6 +86,8 @@ pub async fn main_logic() {
                     }
                 }
 
+                uid_to_mailbox_and_index = Some(HashMap::new());
+
                 RustResult {
                     result: true,
                     info: String::new(),
@@ -105,7 +110,7 @@ pub async fn main_logic() {
 
             // Send
             2 => {
-                if let Some(email_proto) = email_send_listener.recv().await {
+                if let Some(email_proto) = new_email_listener.recv().await {
                     if user.as_ref().is_some() && smtp_cli.as_ref().is_some() {
                         user.as_ref()
                             .unwrap()
@@ -129,27 +134,60 @@ pub async fn main_logic() {
 
             // Fetch email
             4 => {
-                if let Some(mailbox_selection) = mailbox_selection_listener.recv().await {
+                if let Some(mailbox_selection) = mailbox_request_listener.recv().await {
                     match user
                         .as_ref()
                         .unwrap()
                         .fetch_messages(
                             imap_cli.as_mut().unwrap(),
                             mailbox_selection.message.mailbox,
+                            uid_to_mailbox_and_index.as_mut().unwrap(),
                         )
                         .await
                     {
-                        Ok(messages) => {
+                        Ok(email_metadatas) => {
                             RustResult {
                                 result: true,
                                 info: String::new(),
                             }
                             .send_signal_to_dart();
-                            MessagesFetch { emails: messages }.send_signal_to_dart();
+                            EmailMetadataFetch { email_metadatas }.send_signal_to_dart();
                         }
                         Err(e) => {
                             RustResult {
                                 result: true,
+                                info: e.to_string(),
+                            }
+                            .send_signal_to_dart();
+                        }
+                    };
+                }
+            }
+
+            5 => {
+                if let Some(email_detail_request) = email_detail_request_listener.recv().await {
+                    match user
+                        .as_ref()
+                        .unwrap()
+                        .fetch_detail(
+                            imap_cli.as_mut().unwrap(),
+                            email_detail_request.message.uid,
+                            uid_to_mailbox_and_index.as_ref().unwrap(),
+                            email_detail_request.message.folder_path,
+                        )
+                        .await
+                    {
+                        Ok(email_detail_fetch) => {
+                            RustResult {
+                                result: true,
+                                info: String::new(),
+                            }
+                            .send_signal_to_dart();
+                            email_detail_fetch.send_signal_to_dart();
+                        }
+                        Err(e) => {
+                            RustResult {
+                                result: false,
                                 info: e.to_string(),
                             }
                             .send_signal_to_dart();
@@ -219,11 +257,11 @@ impl User {
         }
     }
 
-    pub async fn send(&self, smtp_cli: &SmtpTransport, email: Email) {
-        let email = if email.attachments.is_empty() {
+    pub async fn send(&self, smtp_cli: &SmtpTransport, new_email: NewEmail) {
+        let email = if new_email.attachments.is_empty() {
             Message::builder()
                 .from(Mailbox::from(self.email_addr.clone()))
-                .to(Mailbox::from(match email.to.parse::<Address>() {
+                .to(Mailbox::from(match new_email.to.parse::<Address>() {
                     Ok(to) => to,
                     Err(e) => {
                         RustResult {
@@ -234,14 +272,14 @@ impl User {
                         return;
                     }
                 }))
-                .subject(email.subject)
+                .subject(new_email.subject)
                 .header(ContentType::TEXT_PLAIN)
-                .body(email.body)
+                .body(new_email.body)
                 .unwrap()
         } else {
             let builder = Message::builder()
                 .from(Mailbox::from(self.email_addr.clone()))
-                .to(Mailbox::from(match email.to.parse::<Address>() {
+                .to(Mailbox::from(match new_email.to.parse::<Address>() {
                     Ok(to) => to,
                     Err(e) => {
                         RustResult {
@@ -252,15 +290,15 @@ impl User {
                         return;
                     }
                 }))
-                .subject(email.subject);
+                .subject(new_email.subject);
 
             let mut multi_part = MultiPart::mixed().singlepart(
                 SinglePart::builder()
                     .header(header::ContentType::TEXT_PLAIN)
-                    .body(email.body),
+                    .body(new_email.body),
             );
 
-            for path in email.attachments.iter() {
+            for path in new_email.attachments.iter() {
                 let mime_type = from_path(&path.clone()).first_or_octet_stream();
                 multi_part = multi_part.singlepart(Attachment::new(path.clone()).body(
                     fs::read(path).unwrap(),
@@ -300,14 +338,24 @@ impl User {
         &self,
         imap_cli: &mut Session<Connection>,
         mailbox: String,
-    ) -> Result<Vec<Email>, Box<dyn Error>> {
+        map: &mut HashMap<String, (String, usize)>,
+    ) -> Result<Vec<EmailMetadata>, Box<dyn Error>> {
         let mut messages = vec![];
-        imap_cli.select(mailbox).unwrap();
+        imap_cli.select(&mailbox).unwrap();
 
         // Fetch all messages in the mailbox
         let mut i = 1;
         loop {
             let message = imap_cli.fetch(i.to_string(), "RFC822").unwrap();
+            let uid_fetches: imap::types::Fetches = imap_cli.fetch(i.to_string(), "UID").unwrap();
+            let uid: String = if let Some(fetch) = uid_fetches.iter().next() {
+                fetch.uid.unwrap().to_string()
+            } else {
+                format!("{}: {}", mailbox, i)
+            };
+
+            map.insert(uid.to_owned(), (mailbox.to_owned(), i));
+
             if message.is_empty() {
                 break;
             }
@@ -321,74 +369,14 @@ impl User {
                 })
                 .collect::<Vec<_>>();
 
-            let mut from_st = -1;
-            let mut date_st = -1;
-            for (i, l) in message_body.iter().enumerate() {
-                if l.starts_with("From: ") {
-                    from_st = i as i32;
-                } else if l.starts_with("Date: ") {
-                    date_st = i as i32 + 1;
-                    break;
-                }
-            }
-
-            if from_st == -1 {
-                debug_print!("from_st == -1");
-                continue;
-            }
-
-            let con = message_body
-                .iter()
-                .skip(from_st as usize)
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            let mut body = message_body
-                .iter()
-                .skip(date_st as usize)
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>()
-                .join("\n")
-                .trim()
-                .to_string();
-            if body.is_empty() {
-                body = String::from("[无正文]");
-            } else {
-                body = String::from_utf8(
-                    BASE64_STANDARD
-                        .decode(body.as_bytes())
-                        .unwrap_or("[decoding failed]".as_bytes().to_vec()),
-                )
-                .unwrap();
-            }
-
+            let con = message_body.join("\n");
             let parsed = match parse_mail(con.as_bytes()) {
                 Ok(p) => p,
                 Err(e) => return Err(Box::new(e)),
             };
 
-            debug_print!("{}", parsed.subparts.len());
-
-            let download_path = dirs::download_dir().unwrap();
-
-            for (i, part) in parsed.subparts.iter().enumerate() {
-                let disposition = part.get_content_disposition();
-                if disposition.disposition == DispositionType::Attachment {
-                    let default = format!("attachment_{}", i);
-                    let filename = disposition.params.get("filename").unwrap_or(&default);
-                    println!("Attachment: {}", filename);
-
-                    let file_path = download_path
-                        .join(Path::new(filename).file_name().unwrap());
-
-                    let content = part.get_body_raw()?;
-
-                    Self::save_attachment(file_path.to_str().unwrap(), &content)?;
-                }
-            }
-
-            messages.push(Email {
+            messages.push(EmailMetadata {
+                uid,
                 from: parsed
                     .headers
                     .get_first_value("From")
@@ -405,8 +393,6 @@ impl User {
                     .headers
                     .get_first_value("Date")
                     .unwrap_or(String::from("[未知日期]")),
-                attachments: vec![],
-                body,
             });
             i += 1;
         }
@@ -414,9 +400,63 @@ impl User {
         Ok(messages)
     }
 
+    pub async fn fetch_detail(
+        &self,
+        imap_cli: &mut Session<Connection>,
+        uid: String,
+        map: &HashMap<String, (String, usize)>,
+        folder_path: String,
+    ) -> Result<EmailDetailFetch, Box<dyn Error>> {
+        let (mailbox, index) = map.get(&uid).unwrap();
+        imap_cli.select(mailbox).unwrap();
+        let message = imap_cli.fetch(index.to_string(), "RFC822").unwrap();
+        let message_body = message
+            .iter()
+            .flat_map(|m| {
+                str::from_utf8(m.body().expect("message has no body"))
+                    .unwrap()
+                    .lines()
+                    .map(String::from)
+            })
+            .collect::<Vec<_>>();
+        let con = message_body.join("\n");
+        let parsed = match parse_mail(con.as_bytes()) {
+            Ok(p) => p,
+            Err(e) => return Err(Box::new(e)),
+        };
+
+        debug_print!("{}", parsed.subparts.len());
+
+        let download_path = PathBuf::from(folder_path);
+
+        let mut attachments = vec![];
+        let mut body = String::new();
+
+        for (i, part) in parsed.subparts.iter().enumerate() {
+            let disposition = part.get_content_disposition();
+            if disposition.disposition == DispositionType::Attachment {
+                let default = format!("attachment_{}", i);
+                let filename = disposition.params.get("filename").unwrap_or(&default);
+                let filename = Path::new(filename).file_name().unwrap();
+                attachments.push(filename.to_string_lossy().into_owned());
+
+                let file_path = download_path.join(filename);
+
+                let content = part.get_body_raw()?;
+
+                Self::save_attachment(file_path.to_str().unwrap(), &content)?;
+            } else if disposition.disposition == DispositionType::Inline {
+                debug_print!("inline!!!!!!!!!");
+                body += &part.get_body()?.to_string();
+            }
+        }
+
+        Ok(EmailDetailFetch { attachments, body })
+    }
+
     fn save_attachment(filename: &str, content: &[u8]) -> std::io::Result<()> {
         let path = Path::new(filename);
-        let mut file = File::create(&path)?;
+        let mut file = File::create(path)?;
         file.write_all(content)?;
         println!("Saved attachment to {}", path.display());
         Ok(())
