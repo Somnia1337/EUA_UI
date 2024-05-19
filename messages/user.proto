@@ -20,11 +20,13 @@ message UserProto {
 }
 
 // [RINF:DART-SIGNAL]
-message EmailSend {
-  string to = 1;
-  string subject = 2;
-  repeated string filepath = 3;
-  string body = 4;
+message Email {
+  string from = 1;
+  string to = 2;
+  string subject = 3;
+  string date = 4;
+  repeated string attachments = 5;
+  string body = 6;
 }
 
 // [RINF:DART-SIGNAL]
@@ -48,12 +50,4 @@ message MailboxesFetch {
 // [RINF:RUST-SIGNAL]
 message MessagesFetch {
   repeated Email emails = 1;
-}
-
-message Email {
-  string from = 1;
-  string to = 2;
-  string subject = 3;
-  string date = 4;
-  string body = 5;
 }

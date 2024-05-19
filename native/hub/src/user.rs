@@ -23,7 +23,7 @@ pub async fn main_logic() {
 
     let mut action_listener = Action::get_dart_signal_receiver();
     let mut user_proto_listener = UserProto::get_dart_signal_receiver();
-    let mut email_send_listener = EmailSend::get_dart_signal_receiver();
+    let mut email_send_listener = Email::get_dart_signal_receiver();
     let mut mailbox_selection_listener = MailboxSelection::get_dart_signal_receiver();
 
     while let Some(dart_signal) = action_listener.recv().await {
@@ -41,7 +41,9 @@ pub async fn main_logic() {
                     } else {
                         RustResult {
                             result: false,
-                            info: String::from("用户创建失败，请检查邮箱格式\n当前仅支持 qq.com | 163.com | 126.com"),
+                            info: String::from(
+                                "用户创建失败，请检查邮箱格式\n仅支持 qq.com | 163.com | 126.com",
+                            ),
                         }
                         .send_signal_to_dart();
                         continue;
@@ -210,11 +212,11 @@ impl User {
         }
     }
 
-    pub async fn send(&self, smtp_cli: &SmtpTransport, email_send: EmailSend) {
-        let email = if email_send.filepath.is_empty() {
+    pub async fn send(&self, smtp_cli: &SmtpTransport, email: Email) {
+        let email = if email.attachments.is_empty() {
             Message::builder()
                 .from(Mailbox::from(self.email_addr.clone()))
-                .to(Mailbox::from(match email_send.to.parse::<Address>() {
+                .to(Mailbox::from(match email.to.parse::<Address>() {
                     Ok(to) => to,
                     Err(e) => {
                         RustResult {
@@ -225,14 +227,14 @@ impl User {
                         return;
                     }
                 }))
-                .subject(email_send.subject)
+                .subject(email.subject)
                 .header(ContentType::TEXT_PLAIN)
-                .body(email_send.body)
+                .body(email.body)
                 .unwrap()
         } else {
             let builder = Message::builder()
                 .from(Mailbox::from(self.email_addr.clone()))
-                .to(Mailbox::from(match email_send.to.parse::<Address>() {
+                .to(Mailbox::from(match email.to.parse::<Address>() {
                     Ok(to) => to,
                     Err(e) => {
                         RustResult {
@@ -243,15 +245,15 @@ impl User {
                         return;
                     }
                 }))
-                .subject(email_send.subject);
+                .subject(email.subject);
 
             let mut multi_part = MultiPart::mixed().singlepart(
                 SinglePart::builder()
                     .header(header::ContentType::TEXT_PLAIN)
-                    .body(email_send.body),
+                    .body(email.body),
             );
 
-            for path in email_send.filepath.iter() {
+            for path in email.attachments.iter() {
                 let mime_type = from_path(&path.clone()).first_or_octet_stream();
                 multi_part = multi_part.singlepart(Attachment::new(path.clone()).body(
                     fs::read(path).unwrap(),
@@ -376,6 +378,7 @@ impl User {
                     .headers
                     .get_first_value("Date")
                     .unwrap_or(String::from("[未知日期]")),
+                attachments: vec![], // todo
                 body,
             });
             i += 1;

@@ -12,6 +12,7 @@ class SettingsPage extends StatefulWidget {
     this.onLoggingProcessChanged,
     this.onToggleDarkMode,
   });
+  static String userEmailAddr = '';
   final void Function({required bool isLoggedIn})? onLoginStatusChanged;
   final void Function({required Color seedColor})? onColorChanged;
   final void Function({required bool isLogging})? onLoggingProcessChanged;
@@ -31,7 +32,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
   final _red = const Color.fromRGBO(233, 95, 89, 0.8);
 
-  String _userEmailAddr = '';
+  String userEmailAddr = '';
 
   bool _isLoggedIn = false;
   bool _isLogging = false;
@@ -85,7 +86,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<bool> login() async {
     if (_emailAddrController.text == '' && _passwordController.text == '') {
-      _showSnackBar('😵‍💫"邮箱"和"授权码"是必填字段！', _yellow, const Duration(seconds: 3));
+      _showSnackBar(
+        '😵‍💫"邮箱"和"授权码"是必填字段！',
+        _yellow,
+        const Duration(seconds: 3),
+      );
       return Future.value(false);
     }
     if (_emailAddrController.text == '') {
@@ -102,7 +107,8 @@ class _SettingsPageState extends State<SettingsPage> {
       emailAddr: _emailAddrController.text,
       password: _passwordController.text,
     ).sendSignalToRust();
-    _userEmailAddr = _emailAddrController.text;
+    userEmailAddr = _emailAddrController.text;
+    SettingsPage.userEmailAddr = userEmailAddr;
 
     final loginResult = (await _rustResultListener.first).message;
     if (loginResult.result) {
@@ -243,9 +249,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     final logControlButton = IconButton(
-      onPressed: !_isLogging ? _triggerLoginOrLogout : null,
-      tooltip: _isLoggedIn ? '退出登录' : '登录',
       icon: Icon(!_isLoggedIn ? Icons.login_outlined : Icons.logout_outlined),
+      tooltip: _isLoggedIn ? '退出登录' : '登录',
+      onPressed: !_isLogging ? _triggerLoginOrLogout : null,
+      splashRadius: 20,
     );
 
     final customizations = Row(
@@ -326,8 +333,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       children: <Widget>[
                         Padding(
                           padding: EdgeInsets.zero,
-                          child:
-                              Text('欢迎 👋 $_userEmailAddr', style: textStyle),
+                          child: Text('欢迎 👋 $userEmailAddr', style: textStyle),
                         ),
                         sizedBoxSmall,
                         logControlButton,

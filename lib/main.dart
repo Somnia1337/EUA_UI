@@ -8,13 +8,14 @@ import './messages/generated.dart';
 
 void main() async {
   await initializeRust();
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => LoginStatusNotifier()),
-        ChangeNotifierProvider(create: (_) => ColorChangeNotifier()),
+        ChangeNotifierProvider(create: (_) => SeedColorNotifier()),
       ],
-      child: const MyApp(),
+      child: const MainPage(),
     ),
   );
 }
@@ -28,8 +29,8 @@ class LoginStatusNotifier extends ChangeNotifier {
   }
 }
 
-class ColorChangeNotifier extends ChangeNotifier {
-  Color seedColor = const Color.fromRGBO(0, 0, 0, 1);
+class SeedColorNotifier extends ChangeNotifier {
+  late Color seedColor;
 
   void updateColor({required Color seedColor}) {
     this.seedColor = seedColor;
@@ -37,35 +38,34 @@ class ColorChangeNotifier extends ChangeNotifier {
   }
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+class MainPage extends StatefulWidget {
+  const MainPage({super.key});
+
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<MainPage> createState() => _MainPageState();
 }
 
-class _MyAppState extends State<MyApp> {
-  int _selectedIndex = 2;
-
+class _MainPageState extends State<MainPage> {
+  int _selectedPageIndex = 2;
   bool _isLoggedIn = false;
   bool _isDarkMode = false;
-
-  Color seedColor = const Color.fromRGBO(56, 132, 255, 1);
-
+  Color _seedColor = const Color.fromRGBO(56, 132, 255, 1);
   late ThemeData _lightTheme;
   late ThemeData _darkTheme;
 
   @override
   void initState() {
     super.initState();
-    _rebuildThemes();
+    
+    _buildThemes();
   }
 
-  void _rebuildThemes() {
+  void _buildThemes() {
     _lightTheme = ThemeData(
       brightness: Brightness.light,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: seedColor,
-        primary: seedColor,
+        seedColor: _seedColor,
+        primary: _seedColor,
       ),
       useMaterial3: false,
     );
@@ -73,173 +73,173 @@ class _MyAppState extends State<MyApp> {
     _darkTheme = ThemeData(
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: seedColor,
+        seedColor: _seedColor,
         brightness: Brightness.dark,
       ),
       useMaterial3: false,
     );
   }
 
-  void _onItemTapped(int index) {
+  void _onPageSelected(int pageIndex) {
     setState(() {
-      if (_isLoggedIn) {
-        _selectedIndex = index;
-      } else if (index != 2) {
-        _showSnackBar('请先登录!');
-      }
+      _selectedPageIndex = pageIndex;
     });
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _loginStatusChanged(bool isLoggedIn) {
+  void _onLoginStatusChanged(bool isLoggedIn) {
     setState(() {
       _isLoggedIn = isLoggedIn;
     });
   }
 
-  void _colorChanged(Color seedColor) {
-    setState(() {
-      this.seedColor = seedColor;
-      _rebuildThemes();
-    });
-  }
-
-  void _toggleDarkMode({required bool isDarkMode}) {
+  void _onToggleDarkMode({required bool isDarkMode}) {
     setState(() {
       _isDarkMode = isDarkMode;
     });
   }
 
+  void _onSeedColorChanged(Color seedColor) {
+    setState(() {
+      _seedColor = seedColor;
+      _buildThemes();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final railBackgroundColor = Color.fromRGBO(
+      _seedColor.red,
+      _seedColor.green,
+      _seedColor.blue,
+      0.1,
+    );
+    final selectedLabelTextStyle = TextStyle(
+      fontSize: 18,
+      color: _seedColor,
+    );
+
+    const headerFont = 'DingTalk';
+    const header = Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, 8),
+          child: Text(
+            '谐声收藏家',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              fontFamily: headerFont,
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.zero,
+          child: Text(
+            '你的 📧 用户代理',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              fontFamily: headerFont,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 32,
+        ),
+      ],
+    );
+
+    const destinationIconSizeSmall = 30.0;
+    const destinationIconSizeLarge = 50.0;
+    final destinations = [
+      NavigationRailDestination(
+        icon: const Icon(
+          Icons.email_outlined,
+          size: destinationIconSizeSmall,
+        ),
+        selectedIcon: const Icon(
+          Icons.email,
+          size: destinationIconSizeLarge,
+        ),
+        label: const Text(
+          '写邮件',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        disabled: !_isLoggedIn,
+      ),
+      NavigationRailDestination(
+        icon: const Icon(
+          Icons.markunread_mailbox_outlined,
+          size: destinationIconSizeSmall,
+        ),
+        selectedIcon: const Icon(
+          Icons.markunread_mailbox,
+          size: destinationIconSizeLarge,
+        ),
+        label: const Text(
+          '收件箱',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        disabled: !_isLoggedIn,
+      ),
+      const NavigationRailDestination(
+        icon: Icon(
+          Icons.settings_outlined,
+          size: destinationIconSizeSmall,
+        ),
+        selectedIcon: Icon(
+          Icons.settings,
+          size: destinationIconSizeLarge,
+        ),
+        label: Text(
+          '设置',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    ];
+
+    final pagesStack = IndexedStack(
+      index: _selectedPageIndex,
+      children: [
+        const ComposePage(),
+        const InboxPage(),
+        SettingsPage(
+          onLoginStatusChanged: ({required bool isLoggedIn}) {
+            Provider.of<LoginStatusNotifier>(context, listen: false)
+                .updateLoginStatus(isLoggedIn: isLoggedIn);
+            _onLoginStatusChanged(isLoggedIn);
+          },
+          onColorChanged: ({required Color seedColor}) {
+            Provider.of<SeedColorNotifier>(context, listen: false)
+                .updateColor(seedColor: seedColor);
+            _onSeedColorChanged(seedColor);
+          },
+          onToggleDarkMode: _onToggleDarkMode,
+        ),
+      ],
+    );
+
     return MaterialApp(
       home: Scaffold(
         body: Row(
-          children: <Widget>[
+          children: [
             NavigationRail(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: _onItemTapped,
+              selectedIndex: _selectedPageIndex,
+              onDestinationSelected: _onPageSelected,
               labelType: NavigationRailLabelType.all,
-              backgroundColor: Color.fromRGBO(
-                seedColor.red,
-                seedColor.green,
-                seedColor.blue,
-                0.1,
-              ),
-              selectedLabelTextStyle: TextStyle(
-                fontSize: 16,
-                color: seedColor,
-              ),
-              leading: const Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(24, 24, 24, 8),
-                    child: Text(
-                      '谐声收藏家',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'DingTalk',
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
-                    child: Text(
-                      '你的 📧 用户代理',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'DingTalk',
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                ],
-              ),
-              destinations: [
-                NavigationRailDestination(
-                  icon: const Icon(
-                    Icons.email_outlined,
-                    size: 30,
-                  ),
-                  selectedIcon: const Icon(
-                    Icons.email,
-                    size: 50,
-                  ),
-                  label: const Text(
-                    '写邮件',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  disabled: !_isLoggedIn,
-                ),
-                NavigationRailDestination(
-                  icon: const Icon(
-                    Icons.markunread_mailbox_outlined,
-                    size: 30,
-                  ),
-                  selectedIcon: const Icon(
-                    Icons.markunread_mailbox,
-                    size: 50,
-                  ),
-                  label: const Text(
-                    '收件箱',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  disabled: !_isLoggedIn,
-                ),
-                const NavigationRailDestination(
-                  icon: Icon(
-                    Icons.settings_outlined,
-                    size: 30,
-                  ),
-                  selectedIcon: Icon(
-                    Icons.settings,
-                    size: 50,
-                  ),
-                  indicatorShape: LinearBorder.none,
-                  label: Text(
-                    '设置',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+              backgroundColor: railBackgroundColor,
+              selectedLabelTextStyle: selectedLabelTextStyle,
+              leading: header,
+              destinations: destinations,
             ),
             Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: [
-                  const ComposePage(),
-                  const InboxPage(),
-                  SettingsPage(
-                    onLoginStatusChanged: ({required bool isLoggedIn}) {
-                      Provider.of<LoginStatusNotifier>(context, listen: false)
-                          .updateLoginStatus(isLoggedIn: isLoggedIn);
-                      _loginStatusChanged(isLoggedIn);
-                    },
-                    onColorChanged: ({required Color seedColor}) {
-                      Provider.of<ColorChangeNotifier>(context, listen: false)
-                          .updateColor(seedColor: seedColor);
-                      _colorChanged(seedColor);
-                    },
-                    onToggleDarkMode: _toggleDarkMode,
-                  ),
-                ],
-              ),
+              child: pagesStack,
             ),
           ],
         ),

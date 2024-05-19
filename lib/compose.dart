@@ -6,6 +6,7 @@ import 'package:eua_ui/inbox.dart';
 import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:eua_ui/messages/user.pbserver.dart';
+import 'package:eua_ui/settings.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -18,119 +19,75 @@ class ComposePage extends StatefulWidget {
 }
 
 class _ComposePageState extends State<ComposePage> {
-  final _toController = TextEditingController();
-  final _subjectController = TextEditingController();
-  final _bodyController = TextEditingController();
-  final _subjectFocusNode = FocusNode();
-  final _bodyFocusNode = FocusNode();
+  bool _isComposing = false;
+  bool _isSending = false;
+  bool _isReadingDetail = false;
+  bool _isEmailSent = false;
 
   final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
   final _red = const Color.fromRGBO(233, 95, 89, 0.8);
 
-  bool _isComposing = false;
-  bool _isSending = false;
-  bool _isReadingDetail = false;
-  bool _emailSent = false;
-  List<File> _files = [];
-  var _filesTotal = 0.0;
+  final List<File> _attachments = [];
+  var _attachmentsLengthSum = 0.0;
 
-  late Email _selectedEmail;
+  final List<Email> _sentEmails = [];
+  Email? _selectedEmail;
 
-  final List<Email> _sent = [];
+  final _toInputController = TextEditingController();
+  final _subjectInputController = TextEditingController();
+  final _bodyInputController = TextEditingController();
+
+  final _subjectInputFocusNode = FocusNode();
+  final _bodyInputFocusNode = FocusNode();
 
   final _rustResultStream = RustResult.rustSignalStream;
 
   @override
   void initState() {
     super.initState();
+
     Provider.of<LoginStatusNotifier>(context, listen: false)
-        .addListener(_handleLoginStatusChange);
+        .addListener(_onLoginStatusChange);
   }
 
   @override
   void dispose() {
-    _toController.dispose();
-    _subjectController.dispose();
-    _bodyController.dispose();
-    _subjectFocusNode.dispose();
-    _bodyFocusNode.dispose();
+    _toInputController.dispose();
+    _subjectInputController.dispose();
+    _bodyInputController.dispose();
+
+    _subjectInputFocusNode.dispose();
+    _bodyInputFocusNode.dispose();
+
     Provider.of<LoginStatusNotifier>(context, listen: false)
-        .removeListener(_handleLoginStatusChange);
+        .removeListener(_onLoginStatusChange);
+
     super.dispose();
   }
 
-  void _handleLoginStatusChange() {
+  void _onLoginStatusChange() {
     final loginStatusNotifier =
         Provider.of<LoginStatusNotifier>(context, listen: false);
+
     if (!loginStatusNotifier.isLoggedIn) {
-      _reset();
+      _resetState();
     }
   }
 
-  void _clearContent() {
-    _toController.clear();
-    _subjectController.clear();
-    _bodyController.clear();
+  void _resetState() {
+    _clearComposingFields();
+    _sentEmails.clear();
     setState(() {
-      _files = [];
-      _filesTotal = 0;
+      _isEmailSent = false;
     });
   }
 
-  void _reset() {
-    _clearContent();
-    _sent.clear();
-    setState(() {
-      _emailSent = false;
-      _files = [];
-      _filesTotal = 0;
-    });
-  }
-
-  String _getFilepath(File file) {
-    return file.path;
-  }
-
-  Future<void> send() async {
-    pb.Action(action: 2).sendSignalToRust();
-    EmailSend(
-      to: _toController.text,
-      subject: _subjectController.text,
-      filepath: _files.map(_getFilepath),
-      body: _bodyController.text,
-    ).sendSignalToRust();
-
-    setState(() {
-      _isSending = true;
-    });
-
-    final sendResult = (await _rustResultStream.first).message;
-
-    setState(() {
-      _isSending = false;
-    });
-
-    if (sendResult.result) {
-      setState(() {
-        _isComposing = false;
-        _emailSent = true;
-      });
-      _sent.add(
-        Email(
-          to: _toController.text,
-          subject: _subjectController.text,
-          date: DateTime.now().toString(),
-          body: _bodyController.text,
-        ),
-      );
-      _clearContent();
-    } else {
-      _showSnackBar(
-        '😥邮件发送失败：${sendResult.info}',
-        _red,
-        const Duration(seconds: 5),
-      );
-    }
+  void _clearComposingFields() {
+    _toInputController.clear();
+    _subjectInputController.clear();
+    _bodyInputController.clear();
+    _attachments.clear();
+    _attachmentsLengthSum = 0;
   }
 
   void _showSnackBar(String message, Color? color, Duration duration) {
@@ -145,17 +102,88 @@ class _ComposePageState extends State<ComposePage> {
     );
   }
 
-  Future<File?> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles();
+  Future<void> _sendEmail() async {
+    // Send signals
+    pb.Action(action: 2).sendSignalToRust();
+    final email = Email(
+      from: SettingsPage.userEmailAddr,
+      to: _toInputController.text,
+      subject: _subjectInputController.text,
+      date: DateTime.now().toString(),
+      attachments: _attachments.map((file) => file.path),
+      body: _bodyInputController.text,
+    )..sendSignalToRust();
 
-    if (result != null) {
-      return File(result.files.single.path!);
+    // Wait for Rust result
+    setState(() {
+      _isSending = true;
+    });
+    final sendResult = (await _rustResultStream.first).message;
+    setState(() {
+      _isSending = false;
+    });
+
+    // Handle result
+    if (sendResult.result) {
+      _sentEmails.add(email);
+      _clearComposingFields();
+      setState(() {
+        _isComposing = false;
+        _isEmailSent = true;
+      });
     } else {
-      return null;
+      _showSnackBar(
+        '😥邮件发送失败：${sendResult.info}',
+        _red,
+        const Duration(seconds: 5),
+      );
     }
   }
 
-  void _draftSavingDialog(BuildContext context) {
+  Future<void> _pickFile() async {
+    final filePickerResult = await FilePicker.platform.pickFiles(
+      dialogTitle: '选择附件',
+      allowMultiple: true,
+      lockParentWindow: true,
+    );
+
+    if (filePickerResult != null) {
+      for (final pick in filePickerResult.files) {
+        final file = File(pick.path!);
+        if (!_attachments.any(
+          (filePicked) => filePicked.path == file.path,
+        )) {
+          final length = file.lengthSync() / 1048576;
+          if (_attachmentsLengthSum + length <= 50.0) {
+            setState(() {
+              _attachments.add(file);
+              _attachmentsLengthSum += length;
+            });
+          } else {
+            _showSnackBar(
+              '😵‍💫附件的总大小不能超过 50MB！',
+              _yellow,
+              const Duration(seconds: 2),
+            );
+          }
+        } else {
+          _showSnackBar(
+            '😵‍💫重复附件：${file.path}',
+            _yellow,
+            const Duration(seconds: 2),
+          );
+        }
+      }
+    } else {
+      _showSnackBar(
+        '取消选择附件',
+        null,
+        const Duration(seconds: 1),
+      );
+    }
+  }
+
+  void _showDraftSavingDialog(BuildContext context) {
     showDialog<void>(
       context: context,
       builder: (BuildContext context) {
@@ -171,10 +199,10 @@ class _ComposePageState extends State<ComposePage> {
             ),
             TextButton(
               onPressed: () {
+                _clearComposingFields();
                 setState(() {
                   _isComposing = false;
                 });
-                _clearContent();
                 Navigator.of(context).pop();
               },
               child: const Text('丢弃'),
@@ -196,216 +224,212 @@ class _ComposePageState extends State<ComposePage> {
 
   @override
   Widget build(BuildContext context) {
+    final composeButton = FloatingActionButton(
+      tooltip: _isComposing ? '取消' : '新邮件',
+      onPressed: () {
+        if (_isComposing &&
+            (_toInputController.text.isNotEmpty ||
+                _subjectInputController.text.isNotEmpty ||
+                _attachments.isNotEmpty ||
+                _bodyInputController.text.isNotEmpty)) {
+          _showDraftSavingDialog(context);
+        } else {
+          setState(() {
+            _isComposing = !_isComposing;
+          });
+        }
+      },
+      child: Icon(
+        _isComposing ? Icons.close : Icons.add,
+        key: ValueKey<bool>(_isComposing),
+      ),
+    );
+    final sendButton = FloatingActionButton(
+      tooltip: '发送',
+      onPressed: _sendEmail,
+      child: Icon(
+        Icons.send,
+        key: ValueKey<bool>(_isComposing),
+      ),
+    );
+
+    const sendingText = Center(
+      child: Text(
+        '发送中...',
+        style: TextStyle(fontSize: 20),
+      ),
+    );
+
+    final emailDetail = EmailDetailScreen(
+      email: _selectedEmail ?? Email(),
+      onBack: () {
+        setState(() {
+          _isReadingDetail = false;
+        });
+      },
+    );
+
+    final toInputField = TextFormField(
+      controller: _toInputController,
+      decoration: const InputDecoration(
+        labelText: '收件人',
+        border: UnderlineInputBorder(),
+      ),
+      keyboardType: TextInputType.emailAddress,
+      onFieldSubmitted: (value) {
+        FocusScope.of(context).requestFocus(_subjectInputFocusNode);
+      },
+    );
+    final subjectInputField = TextFormField(
+      controller: _subjectInputController,
+      focusNode: _subjectInputFocusNode,
+      decoration: const InputDecoration(
+        labelText: '主题',
+        border: UnderlineInputBorder(),
+      ),
+      onFieldSubmitted: (value) {
+        FocusScope.of(context).requestFocus(_bodyInputFocusNode);
+      },
+    );
+    final bodyInputField = TextFormField(
+      controller: _bodyInputController,
+      focusNode: _bodyInputFocusNode,
+      decoration: const InputDecoration(
+        labelText: '正文',
+        border: InputBorder.none,
+      ),
+      keyboardType: TextInputType.multiline,
+      maxLines: null,
+      expands: true,
+    );
+
+    final attachmentList = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(
+            bottom: 10,
+          ),
+          child: Text(
+            '已选择 ${_attachmentsLengthSum.toStringAsFixed(1)}MB',
+            style: const TextStyle(
+              fontSize: 16,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _attachments.length,
+            itemBuilder: (context, index) {
+              final file = _attachments[index];
+              return ListTile(
+                minTileHeight: 15,
+                title: Text(
+                  file.path,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.left,
+                ),
+                trailing: IconButton(
+                  icon: const Icon(
+                    Icons.clear_rounded,
+                    size: 20,
+                  ),
+                  splashRadius: 15,
+                  onPressed: () {
+                    final len = _attachments[index].lengthSync() / 1048576;
+                    _showSnackBar(
+                      '已移除：${_attachments[index].path}',
+                      null,
+                      const Duration(
+                        seconds: 2,
+                      ),
+                    );
+                    setState(() {
+                      _attachmentsLengthSum -= len;
+                      _attachments.removeAt(
+                        index,
+                      );
+                    });
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+
     return Scaffold(
-      floatingActionButton: _isReadingDetail || _isSending
+      floatingActionButton: _isSending || _isReadingDetail
           ? null
           : Wrap(
               direction: Axis.vertical,
               verticalDirection: VerticalDirection.up,
-              children: <Widget>[
+              children: [
                 Container(
-                  margin: const EdgeInsets.fromLTRB(0, 10, 0, 0),
-                  child: FloatingActionButton(
-                    tooltip: _isComposing ? '取消' : '新邮件',
-                    onPressed: () {
-                      if (_isComposing &&
-                          (_toController.text.isNotEmpty ||
-                              _subjectController.text.isNotEmpty ||
-                              _files.isNotEmpty ||
-                              _bodyController.text.isNotEmpty)) {
-                        _draftSavingDialog(context);
-                      } else {
-                        setState(() {
-                          _isComposing = !_isComposing;
-                        });
-                      }
-                    },
-                    child: Icon(
-                      _isComposing ? Icons.close : Icons.add,
-                      key: ValueKey<bool>(_isComposing),
-                    ),
-                  ),
+                  margin: const EdgeInsets.only(top: 10),
+                  child: composeButton,
                 ),
                 Container(
-                  child: _isComposing
-                      ? FloatingActionButton(
-                          tooltip: '发送',
-                          onPressed: send,
-                          child: Icon(
-                            Icons.send,
-                            key: ValueKey<bool>(_isComposing),
-                          ),
-                        )
-                      : null,
+                  child: _isComposing ? sendButton : null,
                 ),
               ],
             ),
       body: _isReadingDetail
-          ? EmailDetailScreen(
-              email: _selectedEmail,
-              onBack: () {
-                setState(() {
-                  _isReadingDetail = false;
-                });
-              },
-            )
+          ? emailDetail
           : _isSending
-              ? const Center(
-                  child: Text(
-                    '发送中...',
-                    style: TextStyle(fontSize: 20),
-                  ),
-                )
+              ? sendingText
               : _isComposing
                   ? Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
+                        children: [
                           ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 300),
-                            child: TextFormField(
-                              controller: _toController,
-                              decoration: const InputDecoration(
-                                labelText: '收件人',
-                                border: UnderlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.emailAddress,
-                              onFieldSubmitted: (value) {
-                                FocusScope.of(context)
-                                    .requestFocus(_subjectFocusNode);
-                              },
-                            ),
+                            child: toInputField,
                           ),
                           ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 500),
-                            child: TextFormField(
-                              controller: _subjectController,
-                              focusNode: _subjectFocusNode,
-                              decoration: const InputDecoration(
-                                labelText: '主题',
-                                border: UnderlineInputBorder(),
-                              ),
-                              onFieldSubmitted: (value) {
-                                FocusScope.of(context)
-                                    .requestFocus(_bodyFocusNode);
-                              },
-                            ),
+                            child: subjectInputField,
                           ),
                           const SizedBox(height: 8),
                           ConstrainedBox(
-                            constraints: const BoxConstraints(
+                            constraints: BoxConstraints(
                               maxWidth: 550,
-                              maxHeight: 135,
+                              maxHeight: _attachments.length == 1
+                                  ? 100
+                                  : _attachments.length == 2
+                                      ? 120
+                                      : 140,
                             ),
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 IconButton(
                                   icon: const Icon(
-                                    Icons.file_present_outlined,
+                                    Icons.add_link_outlined,
                                   ),
-                                  tooltip: '附件',
+                                  tooltip: '添加附件',
                                   splashRadius: 20,
-                                  onPressed: () async {
-                                    final file = await _pickFile();
-                                    if (file != null) {
-                                      if (!_files.any(
-                                        (existingFile) =>
-                                            existingFile.path == file.path,
-                                      )) {
-                                        final len = file.lengthSync() / 1048576;
-                                        if (_filesTotal + len <= 50.0) {
-                                          setState(() {
-                                            _files.add(file);
-                                            _filesTotal += len;
-                                          });
-                                        } else {
-                                          _showSnackBar(
-                                            '😵‍💫附件的总大小不能超过 50MB！',
-                                            _yellow,
-                                            const Duration(seconds: 3),
-                                          );
-                                        }
-                                      } else {
-                                        _showSnackBar(
-                                          '😵‍💫重复附件：${file.path}',
-                                          _yellow,
-                                          const Duration(seconds: 3),
-                                        );
-                                      }
-                                    } else {
-                                      _showSnackBar(
-                                        '取消选择附件',
-                                        null,
-                                        const Duration(seconds: 1),
-                                      );
-                                    }
-                                  },
+                                  onPressed: _pickFile,
+                                  alignment: Alignment.topLeft,
                                 ),
                                 Expanded(
                                   child: Padding(
                                     padding: const EdgeInsets.all(8),
-                                    child: _files.isEmpty
+                                    child: _attachments.isEmpty
                                         ? const Text(
-                                            '由于服务器限制，附件的总大小不能超过 50MB！',
+                                            '由于服务器限制，附件的总大小不能超过 50MB',
                                             style: TextStyle(
                                               fontSize: 16,
                                             ),
                                           )
-                                        : Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                '已选择 ${_filesTotal.toStringAsFixed(1)}MB',
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                ),
-                                              ),
-                                              ListView.builder(
-                                                shrinkWrap: true,
-                                                itemCount: _files.length,
-                                                itemBuilder: (context, index) {
-                                                  final file = _files[index];
-                                                  return ListTile(
-                                                    title: Text(
-                                                      file.path,
-                                                      style: const TextStyle(
-                                                        color: Colors.grey,
-                                                        fontSize: 14,
-                                                      ),
-                                                      textAlign: TextAlign.left,
-                                                    ),
-                                                    trailing: IconButton(
-                                                      icon: const Icon(
-                                                        Icons.clear_rounded,
-                                                      ),
-                                                      splashRadius: 20,
-                                                      onPressed: () {
-                                                        final len = _files[
-                                                                    index]
-                                                                .lengthSync() /
-                                                            1048576;
-                                                        _showSnackBar(
-                                                          '已移除：${_files[index].path}',
-                                                          null,
-                                                          const Duration(
-                                                            seconds: 2,
-                                                          ),
-                                                        );
-                                                        setState(() {
-                                                          _filesTotal -= len;
-                                                          _files.removeAt(
-                                                            index,
-                                                          );
-                                                        });
-                                                      },
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
-                                          ),
+                                        : attachmentList,
                                   ),
                                 ),
                               ],
@@ -413,33 +437,23 @@ class _ComposePageState extends State<ComposePage> {
                           ),
                           const SizedBox(height: 8),
                           Expanded(
-                            child: TextFormField(
-                              controller: _bodyController,
-                              focusNode: _bodyFocusNode,
-                              decoration: const InputDecoration(
-                                labelText: '正文',
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.multiline,
-                              maxLines: null,
-                              expands: true,
-                            ),
+                            child: bodyInputField,
                           ),
                         ],
                       ),
                     )
                   : Center(
-                      child: _emailSent
+                      child: _isEmailSent
                           ? ConstrainedBox(
                               constraints: const BoxConstraints(
-                                maxHeight: 260,
+                                maxHeight: 280,
                                 maxWidth: 400,
                               ),
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   const Padding(
-                                    padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
+                                    padding: EdgeInsets.only(bottom: 8),
                                     child: Text(
                                       '已发送邮件',
                                       style: TextStyle(
@@ -452,9 +466,9 @@ class _ComposePageState extends State<ComposePage> {
                                       padding: const EdgeInsets.all(20),
                                       child: ListView.builder(
                                         shrinkWrap: true,
-                                        itemCount: _sent.length,
+                                        itemCount: _sentEmails.length,
                                         itemBuilder: (context, index) {
-                                          final email = _sent[index];
+                                          final email = _sentEmails[index];
                                           return ListTile(
                                             title: Text(
                                               email.subject.isNotEmpty
@@ -462,7 +476,7 @@ class _ComposePageState extends State<ComposePage> {
                                                   : '[无主题]',
                                             ),
                                             subtitle: Text(
-                                              'To ${email.to}',
+                                              '收件人: ${email.to}',
                                             ),
                                             onTap: () {
                                               setState(() {

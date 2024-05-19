@@ -150,7 +150,7 @@ class _MailboxPageState extends State<MailboxPage> {
   bool _existsMessage = false;
   bool _isFetching = false;
   bool _isReadingDetail = false;
-  late Email _selectedEmail;
+  Email? _selectedEmail;
 
   List<Email> messages = [];
 
@@ -223,7 +223,7 @@ class _MailboxPageState extends State<MailboxPage> {
               ? [
                   Expanded(
                     child: EmailDetailScreen(
-                      email: _selectedEmail,
+                      email: _selectedEmail ?? Email(),
                       onBack: () {
                         setState(() {
                           _isReadingDetail = false;
@@ -299,7 +299,7 @@ class EmailDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(email.subject),
+        title: Text('主题: ${email.subject}'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: onBack,
@@ -311,16 +311,29 @@ class EmailDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'From: ${email.from}',
+              '发件人: ${email.from}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Text(
-              'To: ${email.to}',
+              '收件人: ${email.to}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Text(
-              'Date: ${email.date}',
+              '时间: ${email.date}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text.rich(
+              TextSpan(
+                text: '附件: \n',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                children: email.attachments.map((attachment) {
+                  return TextSpan(
+                    text: '$attachment\n',
+                    style: const TextStyle(fontSize: 16),
+                  );
+                }).toList(),
+              ),
             ),
             const SizedBox(height: 20),
             Text(
