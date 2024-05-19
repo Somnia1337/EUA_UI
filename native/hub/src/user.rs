@@ -1,6 +1,12 @@
 use crate::messages::user::*;
 
-use std::{error::Error, fs, str};
+use std::{
+    error::Error,
+    fs::{self, File},
+    io::Write,
+    path::Path,
+    str,
+};
 
 use base64::prelude::*;
 use imap::{self, Connection, Session};
@@ -15,6 +21,7 @@ use lettre::{
 use mailparse::*;
 
 use mime_guess::from_path;
+use rinf::debug_print;
 
 pub async fn main_logic() {
     let mut user: Option<User> = None;
@@ -307,12 +314,11 @@ impl User {
             let message_body = message
                 .iter()
                 .flat_map(|m| {
-                    str::from_utf8(m.body().expect("message did not have a body!"))
+                    str::from_utf8(m.body().expect("message has no body"))
                         .unwrap()
                         .lines()
                         .map(String::from)
                 })
-                .map(|s| s.to_string())
                 .collect::<Vec<_>>();
 
             let mut from_st = -1;
@@ -327,6 +333,7 @@ impl User {
             }
 
             if from_st == -1 {
+                debug_print!("from_st == -1");
                 continue;
             }
 
@@ -353,13 +360,33 @@ impl User {
                         .decode(body.as_bytes())
                         .unwrap_or("[decoding failed]".as_bytes().to_vec()),
                 )
-                .unwrap_or(String::from("[decoding failed]"));
+                .unwrap();
             }
 
             let parsed = match parse_mail(con.as_bytes()) {
                 Ok(p) => p,
                 Err(e) => return Err(Box::new(e)),
             };
+
+            debug_print!("{}", parsed.subparts.len());
+
+            let download_path = dirs::download_dir().unwrap();
+
+            for (i, part) in parsed.subparts.iter().enumerate() {
+                let disposition = part.get_content_disposition();
+                if disposition.disposition == DispositionType::Attachment {
+                    let default = format!("attachment_{}", i);
+                    let filename = disposition.params.get("filename").unwrap_or(&default);
+                    println!("Attachment: {}", filename);
+
+                    let file_path = download_path
+                        .join(Path::new(filename).file_name().unwrap());
+
+                    let content = part.get_body_raw()?;
+
+                    Self::save_attachment(file_path.to_str().unwrap(), &content)?;
+                }
+            }
 
             messages.push(Email {
                 from: parsed
@@ -378,12 +405,20 @@ impl User {
                     .headers
                     .get_first_value("Date")
                     .unwrap_or(String::from("[未知日期]")),
-                attachments: vec![], // todo
+                attachments: vec![],
                 body,
             });
             i += 1;
         }
 
         Ok(messages)
+    }
+
+    fn save_attachment(filename: &str, content: &[u8]) -> std::io::Result<()> {
+        let path = Path::new(filename);
+        let mut file = File::create(&path)?;
+        file.write_all(content)?;
+        println!("Saved attachment to {}", path.display());
+        Ok(())
     }
 }
