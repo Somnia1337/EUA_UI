@@ -350,22 +350,29 @@ impl User {
         let mut body = String::new();
 
         let download_path = PathBuf::from(folder_path);
-        for (i, part) in parsed.subparts.iter().enumerate() {
-            let disposition = part.get_content_disposition();
 
-            match disposition.disposition {
-                DispositionType::Attachment => {
-                    let default = format!("attachment_{}", i);
-                    let filename = disposition.params.get("filename").unwrap_or(&default);
-                    let filename = Path::new(filename).file_name().unwrap();
+        if parsed.subparts.is_empty() {
+            body = parsed.get_body().unwrap_or(String::from("[正文解析错误]"));
+        } else {
+            for (i, part) in parsed.subparts.iter().enumerate() {
+                let disposition = part.get_content_disposition();
 
-                    let file_path = download_path.join(filename);
-                    let content = part.get_body_raw()?;
-                    save_attachment(file_path.to_str().unwrap(), &content)?;
-                    attachments.push(filename.to_string_lossy().into_owned());
+                match disposition.disposition {
+                    DispositionType::Attachment => {
+                        let default = format!("attachment_{}", i);
+                        let filename = disposition.params.get("filename").unwrap_or(&default);
+                        let filename = Path::new(filename).file_name().unwrap();
+
+                        let file_path = download_path.join(filename);
+                        let content = part.get_body_raw()?;
+                        save_attachment(file_path.to_str().unwrap(), &content)?;
+                        attachments.push(filename.to_string_lossy().into_owned());
+                    }
+                    DispositionType::Inline => {
+                        body += &part.get_body()?.to_string();
+                    }
+                    _ => {}
                 }
-                DispositionType::Inline => body += &part.get_body()?.to_string(),
-                _ => {}
             }
         }
 

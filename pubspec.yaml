@@ -3,7 +3,7 @@ description: "An email user agent implemented in Flutter & Rust."
 
 publish_to: 'none'
 
-version: 0.5.2
+version: 0.5.3
 
 environment:
   sdk: '>=3.3.4 <4.0.0'
