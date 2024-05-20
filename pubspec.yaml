@@ -3,7 +3,7 @@ description: "An email user agent implemented in Flutter & Rust."
 
 publish_to: 'none'
 
-version: 0.5.0
+version: 0.5.1
 
 environment:
   sdk: '>=3.3.4 <4.0.0'
@@ -40,4 +40,7 @@ flutter:
   assets:
     - packages/eua_ui/images/github-mark.png
     - packages/eua_ui/images/github-mark-white.png
+    - packages/eua_ui/images/Flutter.png
+    - packages/eua_ui/images/Rust.png
+    - packages/eua_ui/images/Rust-white.png
   uses-material-design: true

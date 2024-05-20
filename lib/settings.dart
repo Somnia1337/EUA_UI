@@ -265,8 +265,14 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _launchUrl() async {
-    final url = Uri.parse('https://github.com/Somnia1337/EUA_UI');
+  Future<void> _launchUrl(String desc) async {
+    final uri = switch (desc) {
+      'Github' => 'https://github.com/Somnia1337/EUA_UI',
+      'Flutter' => 'https://flutter.dev',
+      'Rust' => 'https://www.rust-lang.org/',
+      _ => '',
+    };
+    final url = Uri.parse(uri);
     await launchUrl(url);
   }
 
@@ -383,7 +389,7 @@ class _SettingsPageState extends State<SettingsPage> {
         Padding(
           padding: EdgeInsets.zero,
           child: Text(
-            'v0.5.0',
+            'v0.5.1',
             style: TextStyle(
               fontSize: 16,
               fontFamily: 'Consolas',
@@ -394,14 +400,46 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     final githubImage = InkWell(
-      onTap: _launchUrl,
+      onTap: () {
+        _launchUrl('Github');
+      },
       child: Image.asset(
         currentBrightness == Brightness.light
             ? 'packages/eua_ui/images/github-mark.png'
             : 'packages/eua_ui/images/github-mark-white.png',
-        width: 50,
-        height: 50,
+        width: 40,
+        height: 40,
       ),
+    );
+    final flutterImage = InkWell(
+      onTap: () {
+        _launchUrl('Flutter');
+      },
+      child: Image.asset(
+        'packages/eua_ui/images/Flutter.png',
+        width: 30,
+      ),
+    );
+    final rustImage = InkWell(
+      onTap: () {
+        _launchUrl('Rust');
+      },
+      child: Image.asset(
+        currentBrightness == Brightness.light
+            ? 'packages/eua_ui/images/Rust.png'
+            : 'packages/eua_ui/images/Rust-white.png',
+        width: 37,
+      ),
+    );
+    final gallery = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        flutterImage,
+        const SizedBox(
+          width: 20,
+        ),
+        rustImage,
+      ],
     );
 
     final customizationsAndInfo = Column(
@@ -413,6 +451,8 @@ class _SettingsPageState extends State<SettingsPage> {
         info,
         sizedBoxSmall,
         githubImage,
+        sizedBoxSmall,
+        gallery,
       ],
     );
 

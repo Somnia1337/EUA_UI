@@ -1,6 +1,3 @@
-// TODO(Somnia1337): 已保存过附件的邮件可以直接打开
-// TODO(Somnia1337): 展示附件保存位置
-
 import 'package:eua_ui/detail.dart';
 import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
@@ -24,7 +21,9 @@ class _InboxPageState extends State<InboxPage> {
   bool _isFetchingMailboxes = false;
   bool _isMailboxesFetched = false;
   bool _isNetease = false;
+  String? _folderPath;
 
+  final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
   List<String> _mailboxes = [];
 
   @override
@@ -54,6 +53,7 @@ class _InboxPageState extends State<InboxPage> {
       _selectedMailbox = 0;
       _mailboxes.clear();
       _isMailboxesFetched = false;
+      _folderPath = null;
     });
   }
 
@@ -61,6 +61,37 @@ class _InboxPageState extends State<InboxPage> {
     setState(() {
       _selectedMailbox = index;
     });
+  }
+
+  void _showSnackBar(String message, Color? color, Duration duration) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: TextStyle(
+            fontSize: 18,
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        duration: duration,
+      ),
+    );
+  }
+
+  Future<bool> _pickFolder() async {
+    final selectedFolder = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: '选择附件保存的位置',
+      lockParentWindow: true,
+    );
+
+    if (selectedFolder != null) {
+      setState(() {
+        _folderPath = selectedFolder;
+      });
+      return true;
+    }
+    return false;
   }
 
   Future<void> _fetchMailboxes() async {
@@ -112,10 +143,20 @@ class _InboxPageState extends State<InboxPage> {
     );
 
     final fetchMailboxesButton = FloatingActionButton(
-      onPressed: _fetchMailboxes,
+      onPressed: () async {
+        if (await _pickFolder()) {
+          await _fetchMailboxes();
+        } else {
+          _showSnackBar(
+            '❗必须选择附件保存位置才能下载邮件',
+            _yellow,
+            const Duration(seconds: 2),
+          );
+        }
+      },
       heroTag: 'inboxPageFloatingActionButton',
-      tooltip: '获取收件箱',
-      child: const Icon(Icons.move_to_inbox_outlined),
+      tooltip: '选择位置',
+      child: const Icon(Icons.folder),
     );
 
     final mailboxDestinations = _mailboxes.map((mailbox) {
@@ -128,7 +169,7 @@ class _InboxPageState extends State<InboxPage> {
 
     final fetchInfo = Center(
       child: Text(
-        _isFetchingMailboxes ? '获取中...' : '请手动获取收件箱',
+        _isFetchingMailboxes ? '正在获取收件箱...' : '请选择附件保存位置',
         style: const TextStyle(
           fontSize: 20,
         ),
@@ -156,7 +197,10 @@ class _InboxPageState extends State<InboxPage> {
                         index: _selectedMailbox,
                         children: _mailboxes.map((mailbox) {
                           return Center(
-                            child: MailboxPage(mailbox: mailbox),
+                            child: MailboxPage(
+                              mailbox: mailbox,
+                              folderPath: _folderPath ?? '',
+                            ),
                           );
                         }).toList(),
                       ),
@@ -169,9 +213,14 @@ class _InboxPageState extends State<InboxPage> {
 }
 
 class MailboxPage extends StatefulWidget {
-  const MailboxPage({required this.mailbox, super.key});
+  const MailboxPage({
+    required this.mailbox,
+    required this.folderPath,
+    super.key,
+  });
 
   final String mailbox;
+  final String folderPath;
 
   @override
   State<MailboxPage> createState() => _MailboxPageState();
@@ -187,12 +236,13 @@ class _MailboxPageState extends State<MailboxPage> {
   bool _isFetchingMetadata = false;
   bool _isFetchingDetail = false;
   bool _isReadingDetail = false;
+  late String _folderPath;
   final _red = const Color.fromRGBO(233, 95, 89, 0.8);
   final _style = const TextStyle(
     fontSize: 20,
   );
 
-  late String mailbox;
+  late String _mailbox;
   EmailMetadata? _selectedEmail;
   EmailDetailFetch? _emailDetail;
   List<EmailMetadata> emailMetadatas = [];
@@ -201,13 +251,14 @@ class _MailboxPageState extends State<MailboxPage> {
   void initState() {
     super.initState();
 
-    mailbox = widget.mailbox;
+    _mailbox = widget.mailbox;
+    _folderPath = widget.folderPath;
   }
 
   Future<void> _fetchEmailMetadatas() async {
     // Send signals
     pb.Action(action: 4).sendSignalToRust();
-    MailboxRequest(mailbox: mailbox).sendSignalToRust();
+    MailboxRequest(mailbox: _mailbox).sendSignalToRust();
 
     // Wait for Rust
     setState(() {
@@ -234,19 +285,6 @@ class _MailboxPageState extends State<MailboxPage> {
       _triedFetching = true;
       _existsMessage = emailMetadatas.isNotEmpty;
     });
-  }
-
-  Future<String?> _pickFolder() async {
-    final selectedFolder = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: '选择附件保存的位置',
-      lockParentWindow: true,
-    );
-
-    if (selectedFolder != null) {
-      return selectedFolder;
-    }
-    _showSnackBar('取消选择附件保存位置', null, const Duration(seconds: 1));
-    return null;
   }
 
   Future<bool> _fetchEmailDetail(
@@ -301,16 +339,17 @@ class _MailboxPageState extends State<MailboxPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('收件箱: $mailbox'),
+        title: Text('收件箱: $_mailbox'),
       ),
-      floatingActionButton: _isFetchingMetadata || _isReadingDetail
-          ? null
-          : FloatingActionButton(
-              autofocus: true,
-              onPressed: _fetchEmailMetadatas,
-              tooltip: _triedFetching ? '刷新' : '下载邮件',
-              child: Icon(_triedFetching ? Icons.refresh : Icons.download),
-            ),
+      floatingActionButton:
+          _isFetchingMetadata || _isReadingDetail || _isFetchingDetail
+              ? null
+              : FloatingActionButton(
+                  autofocus: true,
+                  onPressed: _fetchEmailMetadatas,
+                  tooltip: _triedFetching ? '刷新' : '下载邮件',
+                  child: Icon(_triedFetching ? Icons.refresh : Icons.download),
+                ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -320,6 +359,7 @@ class _MailboxPageState extends State<MailboxPage> {
                     child: EmailDetailPage(
                       emailMetadata: _selectedEmail ?? EmailMetadata(),
                       emailDetail: _emailDetail ?? EmailDetailFetch(),
+                      folderPath: _folderPath,
                       onBack: () {
                         setState(() {
                           _isReadingDetail = false;
@@ -362,13 +402,10 @@ class _MailboxPageState extends State<MailboxPage> {
                                                       'From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}',
                                                     ),
                                                     onTap: () async {
-                                                      final folderPath =
-                                                          await _pickFolder();
-                                                      if (folderPath != null &&
-                                                          await _fetchEmailDetail(
-                                                            email,
-                                                            folderPath,
-                                                          )) {
+                                                      if (await _fetchEmailDetail(
+                                                        email,
+                                                        _folderPath,
+                                                      )) {
                                                         setState(() {
                                                           _selectedEmail =
                                                               email;
