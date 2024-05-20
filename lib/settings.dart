@@ -34,20 +34,21 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  String userEmailAddr = '';
-
-  bool _isLoggedIn = false;
-  bool _isLogging = false;
-  bool _isPasswordVisible = false;
-  final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
   final _red = const Color.fromRGBO(233, 95, 89, 0.8);
-  Color _pickerColor = const Color.fromRGBO(56, 132, 255, 1);
 
   final _emailAddrController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
 
   final _rustResultListener = RustResult.rustSignalStream;
+
+  bool _isLoggedIn = false;
+  bool _isLogging = false;
+  bool _isPasswordVisible = false;
+
+  String _userEmailAddr = '';
+
+  Color _pickerColor = const Color.fromRGBO(56, 132, 255, 1);
 
   @override
   void dispose() {
@@ -107,17 +108,17 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_emailAddrController.text == '' && _passwordController.text == '') {
       _showSnackBar(
         '😵‍💫"邮箱"和"授权码"是必填字段！',
-        _yellow,
+        _red,
         const Duration(seconds: 2),
       );
       return Future.value(false);
     }
     if (_emailAddrController.text == '') {
-      _showSnackBar('😵‍💫"邮箱"是必填字段！', _yellow, const Duration(seconds: 2));
+      _showSnackBar('😵‍💫"邮箱"是必填字段！', _red, const Duration(seconds: 2));
       return Future.value(false);
     }
     if (_passwordController.text == '') {
-      _showSnackBar('😵‍💫"授权码"是必填字段！', _yellow, const Duration(seconds: 2));
+      _showSnackBar('😵‍💫"授权码"是必填字段！', _red, const Duration(seconds: 2));
       return Future.value(false);
     }
 
@@ -131,8 +132,8 @@ class _SettingsPageState extends State<SettingsPage> {
     if (loginResult.result) {
       _showSnackBar('🤗登录成功', null, const Duration(seconds: 1));
       setState(() {
-        userEmailAddr = _emailAddrController.text;
-        SettingsPage.userEmailAddr = userEmailAddr;
+        _userEmailAddr = _emailAddrController.text;
+        SettingsPage.userEmailAddr = _userEmailAddr;
       });
       return true;
     }
@@ -276,65 +277,65 @@ class _SettingsPageState extends State<SettingsPage> {
 
     const sizedBox = SizedBox(height: 12);
 
-    final emailAddrInputField = TextFormField(
-      controller: _emailAddrController,
-      decoration: InputDecoration(
-        labelText: '邮箱',
-        border: const UnderlineInputBorder(),
-        suffixIcon: IconButton(
-          icon: const Icon(Icons.clear_rounded),
-          splashRadius: 20,
-          onPressed: () {
-            _emailAddrController.clear();
-            _passwordController.clear();
-          },
-        ),
-      ),
-      keyboardType: TextInputType.emailAddress,
-      onFieldSubmitted: (value) {
-        FocusScope.of(context).requestFocus(_passwordFocusNode);
-      },
-    );
-    final passwordInputField = TextFormField(
-      controller: _passwordController,
-      obscureText: !_isPasswordVisible,
-      focusNode: _passwordFocusNode,
-      decoration: InputDecoration(
-        labelText: '授权码 (不是邮箱密码!!)',
-        border: const UnderlineInputBorder(),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+    final inputFields = Column(
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 250),
+          child: TextFormField(
+            controller: _emailAddrController,
+            decoration: InputDecoration(
+              labelText: '邮箱',
+              border: const UnderlineInputBorder(),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.clear_rounded),
+                splashRadius: 20,
+                onPressed: () {
+                  _emailAddrController.clear();
+                  _passwordController.clear();
+                },
+              ),
+            ),
+            keyboardType: TextInputType.emailAddress,
+            onFieldSubmitted: (value) {
+              FocusScope.of(context).requestFocus(_passwordFocusNode);
+            },
           ),
-          splashRadius: 20,
-          onPressed: () {
-            setState(() {
-              _isPasswordVisible = !_isPasswordVisible;
-            });
-          },
         ),
-      ),
-      onEditingComplete: _triggerLoginOrLogout,
-    );
-
-    final welcome = Padding(
-      padding: EdgeInsets.zero,
-      child: Text(
-        '欢迎 👋 $userEmailAddr',
-        style: const TextStyle(
-          fontSize: 20,
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 250),
+          child: TextFormField(
+            controller: _passwordController,
+            obscureText: !_isPasswordVisible,
+            focusNode: _passwordFocusNode,
+            decoration: InputDecoration(
+              labelText: '授权码 (不是邮箱密码!!)',
+              border: const UnderlineInputBorder(),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                ),
+                splashRadius: 20,
+                onPressed: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible;
+                  });
+                },
+              ),
+            ),
+            onEditingComplete: _triggerLoginOrLogout,
+          ),
         ),
+      ],
+    );
+
+    final welcome = Text(
+      '欢迎 👋 $_userEmailAddr',
+      style: const TextStyle(
+        fontSize: 20,
       ),
     );
 
-    final logControlButton = IconButton(
-      icon: Icon(!_isLoggedIn ? Icons.login_outlined : Icons.logout_outlined),
-      tooltip: _isLoggedIn ? '退出登录' : '登录',
-      onPressed: !_isLogging ? _triggerLoginOrLogout : null,
-      splashRadius: 20,
-    );
-
-    final customizations = Row(
+    final logAndTheme = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
@@ -355,6 +356,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 : Icons.nightlight_outlined,
           ),
         ),
+        const SizedBox(width: 20),
+        IconButton(
+          icon:
+              Icon(!_isLoggedIn ? Icons.login_outlined : Icons.logout_outlined),
+          tooltip: _isLoggedIn ? '退出登录' : '登录',
+          onPressed: !_isLogging ? _triggerLoginOrLogout : null,
+          splashRadius: 20,
+        ),
+        const SizedBox(width: 20),
         IconButton(
           onPressed: _showColorPickerDialog,
           tooltip: '颜色',
@@ -369,44 +379,38 @@ class _SettingsPageState extends State<SettingsPage> {
 
     const info = Column(
       children: [
-        Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            '卢剑歌 2022141461145',
-            style: TextStyle(
-              fontSize: 18,
-              fontFamily: 'DingTalk',
-            ),
+        Text(
+          '卢剑歌 2022141461145',
+          style: TextStyle(
+            fontSize: 18,
+            fontFamily: 'DingTalk',
           ),
         ),
-        Padding(
-          padding: EdgeInsets.zero,
-          child: Text(
-            'Made with',
-            style: TextStyle(
-              fontSize: 14,
-              fontFamily: 'DingTalk',
-            ),
+        SizedBox(
+          height: 8,
+        ),
+        Text(
+          'Made with',
+          style: TextStyle(
+            fontSize: 16,
+            fontFamily: 'DingTalk',
           ),
         ),
-        Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            'Flutter🎯, Rust🦀 & Love❤',
-            style: TextStyle(
-              fontSize: 14,
-              fontFamily: 'DingTalk',
-            ),
+        Text(
+          '🎯Flutter, 🦀Rust & 🩷Love.',
+          style: TextStyle(
+            fontSize: 16,
+            fontFamily: 'DingTalk',
           ),
         ),
-        Padding(
-          padding: EdgeInsets.zero,
-          child: Text(
-            'v0.5.1',
-            style: TextStyle(
-              fontSize: 16,
-              fontFamily: 'Consolas',
-            ),
+        SizedBox(
+          height: 8,
+        ),
+        Text(
+          'v0.5.2',
+          style: TextStyle(
+            fontSize: 16,
+            fontFamily: 'JetbrainsMONO',
           ),
         ),
       ],
@@ -423,51 +427,18 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
 
-    final customizationsAndInfo = Column(
-      children: [
-        logControlButton,
-        sizedBox,
-        customizations,
-        sizedBox,
-        info,
-        sizedBox,
-        githubImage,
-      ],
-    );
-
     return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _isLoggedIn
-                ? Padding(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      children: [
-                        welcome,
-                        sizedBox,
-                        customizationsAndInfo,
-                      ],
-                    ),
-                  )
-                : Padding(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      children: [
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 250),
-                          child: emailAddrInputField,
-                        ),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 250),
-                          child: passwordInputField,
-                        ),
-                        sizedBox,
-                        customizationsAndInfo,
-                      ],
-                    ),
-                  ),
+            _isLoggedIn ? welcome : inputFields,
+            sizedBox,
+            logAndTheme,
+            sizedBox,
+            info,
+            sizedBox,
+            githubImage,
           ],
         ),
       ),

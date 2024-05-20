@@ -3,7 +3,7 @@ description: "An email user agent implemented in Flutter & Rust."
 
 publish_to: 'none'
 
-version: 0.5.1
+version: 0.5.2
 
 environment:
   sdk: '>=3.3.4 <4.0.0'
@@ -37,6 +37,9 @@ flutter:
     - family: DingTalk
       fonts:
         - asset: packages/eua_ui/fonts/DingTalkJinBuTi.ttf
+    - family: JetbrainsMONO
+      fonts:
+        - asset: packages/eua_ui/fonts/JetBrainsMono-SemiBold.ttf
   assets:
     - packages/eua_ui/images/github-mark.png
     - packages/eua_ui/images/github-mark-white.png

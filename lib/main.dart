@@ -49,6 +49,7 @@ class _MainPageState extends State<MainPage> {
   int _selectedPageIndex = 2;
   bool _isLoggedIn = false;
   bool _isDarkMode = false;
+
   Color _seedColor = const Color.fromRGBO(56, 132, 255, 1);
   late ThemeData _lightTheme;
   late ThemeData _darkTheme;
@@ -132,15 +133,12 @@ class _MainPageState extends State<MainPage> {
             ),
           ),
         ),
-        Padding(
-          padding: EdgeInsets.zero,
-          child: Text(
-            '你的 📧 用户代理',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              fontFamily: headerFont,
-            ),
+        Text(
+          '你的 📧 用户代理',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            fontFamily: headerFont,
           ),
         ),
         SizedBox(

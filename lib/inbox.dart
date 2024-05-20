@@ -1,4 +1,3 @@
-import 'package:eua_ui/detail.dart';
 import 'package:eua_ui/main.dart';
 import 'package:eua_ui/messages/user.pb.dart' as pb;
 import 'package:eua_ui/messages/user.pbserver.dart';
@@ -6,6 +5,7 @@ import 'package:eua_ui/settings.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class InboxPage extends StatefulWidget {
   const InboxPage({super.key});
@@ -15,15 +15,17 @@ class InboxPage extends StatefulWidget {
 }
 
 class _InboxPageState extends State<InboxPage> {
+  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
+
   final _mailboxesFetchListener = MailboxesFetch.rustSignalStream;
 
   int _selectedMailbox = 0;
   bool _isFetchingMailboxes = false;
   bool _isMailboxesFetched = false;
   bool _isNetease = false;
+
   String? _folderPath;
 
-  final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
   List<String> _mailboxes = [];
 
   @override
@@ -44,15 +46,17 @@ class _InboxPageState extends State<InboxPage> {
     });
 
     if (!loginStatusNotifier.isLoggedIn) {
-      _reset();
+      _resetState();
     }
   }
 
-  void _reset() {
+  void _resetState() {
+    _mailboxes.clear();
     setState(() {
       _selectedMailbox = 0;
-      _mailboxes.clear();
+      _isFetchingMailboxes = false;
       _isMailboxesFetched = false;
+      _isNetease = false;
       _folderPath = null;
     });
   }
@@ -145,11 +149,16 @@ class _InboxPageState extends State<InboxPage> {
     final fetchMailboxesButton = FloatingActionButton(
       onPressed: () async {
         if (await _pickFolder()) {
+          _showSnackBar(
+            '已选择位置: $_folderPath',
+            null,
+            const Duration(seconds: 2),
+          );
           await _fetchMailboxes();
         } else {
           _showSnackBar(
             '❗必须选择附件保存位置才能下载邮件',
-            _yellow,
+            _red,
             const Duration(seconds: 2),
           );
         }
@@ -338,9 +347,11 @@ class _MailboxPageState extends State<MailboxPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('收件箱: $_mailbox'),
-      ),
+      appBar: _isReadingDetail
+          ? null
+          : AppBar(
+              title: Text('收件箱: $_mailbox'),
+            ),
       floatingActionButton:
           _isFetchingMetadata || _isReadingDetail || _isFetchingDetail
               ? null
@@ -380,7 +391,7 @@ class _MailboxPageState extends State<MailboxPage> {
                             ]
                           : _isFetchingDetail
                               ? [
-                                  Text('正在下载附件...', style: _style),
+                                  Text('正在下载正文和附件...', style: _style),
                                 ]
                               : _triedFetching
                                   ? _existsMessage
@@ -429,6 +440,150 @@ class _MailboxPageState extends State<MailboxPage> {
                     ),
                   ),
                 ],
+        ),
+      ),
+    );
+  }
+}
+
+class EmailDetailPage extends StatefulWidget {
+  const EmailDetailPage({
+    super.key,
+    required this.emailMetadata,
+    required this.emailDetail,
+    required this.onBack,
+    required this.folderPath,
+  });
+
+  final EmailMetadata emailMetadata;
+  final EmailDetailFetch emailDetail;
+  final VoidCallback onBack;
+  final String folderPath;
+
+  @override
+  State<EmailDetailPage> createState() => _EmailDetailPageState();
+}
+
+class _EmailDetailPageState extends State<EmailDetailPage> {
+  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
+  final _style = const TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
+
+  late String folderPath = widget.folderPath;
+
+  Future<void> _openFolder(String folderPath) async {
+    final folderUri = Uri.file(folderPath);
+    if (await canLaunchUrl(folderUri)) {
+      await launchUrl(folderUri);
+    } else {
+      _showSnackBar('❌无法打开 $folderPath', _red, const Duration(seconds: 3));
+    }
+  }
+
+  void _showSnackBar(String message, Color? color, Duration duration) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: TextStyle(
+            fontSize: 18,
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        duration: duration,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const sizedBox = SizedBox(height: 4);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.emailMetadata.subject),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: widget.onBack,
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '发件人: ${widget.emailMetadata.from}',
+              style: _style,
+            ),
+            sizedBox,
+            Text(
+              '收件人: ${widget.emailMetadata.to}',
+              style: _style,
+            ),
+            sizedBox,
+            Text(
+              '时间: ${widget.emailMetadata.date}',
+              style: _style,
+            ),
+            sizedBox,
+            widget.emailDetail.attachments.isNotEmpty
+                ? Row(
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            '附件:',
+                            style: _style,
+                          ),
+                          IconButton(
+                            onPressed: () => _openFolder(folderPath),
+                            icon: const Icon(Icons.folder_outlined),
+                            tooltip: '打开附件位置',
+                            splashRadius: 20,
+                          ),
+                        ],
+                      ),
+                      Text.rich(
+                        TextSpan(
+                          text: '\n',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          children:
+                              widget.emailDetail.attachments.map((attachment) {
+                            return TextSpan(
+                              text: '$attachment\n',
+                              style: const TextStyle(fontSize: 16),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(
+                    '[无附件]',
+                    style: _style,
+                  ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 550, maxWidth: 550),
+                child: SingleChildScrollView(
+                  child: widget.emailDetail.body.isNotEmpty
+                      ? Text(
+                          widget.emailDetail.body,
+                          style: const TextStyle(fontSize: 16),
+                        )
+                      : const Text(
+                          '[无正文]',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

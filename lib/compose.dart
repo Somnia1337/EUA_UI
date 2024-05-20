@@ -17,18 +17,18 @@ class ComposePage extends StatefulWidget {
 }
 
 class _ComposePageState extends State<ComposePage> {
+  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
+
+  final List<File> _attachments = [];
+  final List<NewEmail> _sentEmails = [];
+
   bool _isComposing = false;
   bool _isSending = false;
   bool _isReadingDetail = false;
   bool _isEmailSent = false;
 
-  final _yellow = const Color.fromRGBO(211, 211, 80, 0.8);
-  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
+  double _attachmentsLengthSum = 0;
 
-  final List<File> _attachments = [];
-  var _attachmentsLengthSum = 0.0;
-
-  final List<NewEmail> _sentEmails = [];
   NewEmail? _selectedEmail;
 
   final _toInputController = TextEditingController();
@@ -74,9 +74,15 @@ class _ComposePageState extends State<ComposePage> {
 
   void _resetState() {
     _clearComposingFields();
+    _attachments.clear();
     _sentEmails.clear();
     setState(() {
+      _isComposing = false;
+      _isSending = false;
+      _isReadingDetail = false;
       _isEmailSent = false;
+      _attachmentsLengthSum = 0;
+      _selectedEmail = null;
     });
   }
 
@@ -86,6 +92,7 @@ class _ComposePageState extends State<ComposePage> {
     _bodyInputController.clear();
     _attachments.clear();
     _attachmentsLengthSum = 0;
+    _selectedEmail = null;
   }
 
   void _showSnackBar(String message, Color? color, Duration duration) {
@@ -113,7 +120,7 @@ class _ComposePageState extends State<ComposePage> {
       subject: _subjectInputController.text,
       date: DateTime.now().toString(),
       attachments: _attachments.map((file) => file.path),
-      body: _bodyInputController.text,
+      body: _bodyInputController.text.trim(),
     )..sendSignalToRust();
 
     // Wait for Rust result
@@ -155,7 +162,7 @@ class _ComposePageState extends State<ComposePage> {
         if (!_attachments.any(
           (filePicked) => filePicked.path == file.path,
         )) {
-          final length = file.lengthSync() / 1048576;
+          final length = file.lengthSync() / 1048576.0;
           if (_attachmentsLengthSum + length <= 50.0) {
             setState(() {
               _attachments.add(file);
@@ -164,14 +171,14 @@ class _ComposePageState extends State<ComposePage> {
           } else {
             _showSnackBar(
               '😵‍💫附件的总大小不能超过 50MB！',
-              _yellow,
+              _red,
               const Duration(seconds: 2),
             );
           }
         } else {
           _showSnackBar(
             '😵‍💫重复附件: ${file.path}',
-            _yellow,
+            _red,
             const Duration(seconds: 2),
           );
         }
@@ -257,12 +264,12 @@ class _ComposePageState extends State<ComposePage> {
 
     const sendingText = Center(
       child: Text(
-        '发送中...',
+        '正在发送...',
         style: TextStyle(fontSize: 20),
       ),
     );
 
-    final emailDetail = NewEmailDetailScreen(
+    final emailDetail = SentEmailDetailPage(
       email: _selectedEmail ?? NewEmail(),
       onBack: () {
         setState(() {
@@ -298,6 +305,8 @@ class _ComposePageState extends State<ComposePage> {
       focusNode: _bodyInputFocusNode,
       decoration: const InputDecoration(
         labelText: '正文',
+        alignLabelWithHint: true,
+        contentPadding: EdgeInsets.symmetric(vertical: 10),
         border: InputBorder.none,
       ),
       keyboardType: TextInputType.multiline,
@@ -308,16 +317,14 @@ class _ComposePageState extends State<ComposePage> {
     final attachmentList = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(
-            bottom: 10,
+        Text(
+          '已选择 ${_attachmentsLengthSum.toStringAsFixed(1)}MB',
+          style: const TextStyle(
+            fontSize: 16,
           ),
-          child: Text(
-            '已选择 ${_attachmentsLengthSum.toStringAsFixed(1)}MB',
-            style: const TextStyle(
-              fontSize: 16,
-            ),
-          ),
+        ),
+        const SizedBox(
+          height: 10,
         ),
         Expanded(
           child: ListView.builder(
@@ -342,7 +349,7 @@ class _ComposePageState extends State<ComposePage> {
                   ),
                   splashRadius: 15,
                   onPressed: () {
-                    final len = _attachments[index].lengthSync() / 1048576;
+                    final length = _attachments[index].lengthSync() / 1048576.0;
                     _showSnackBar(
                       '已移除: ${_attachments[index].path}',
                       null,
@@ -351,7 +358,7 @@ class _ComposePageState extends State<ComposePage> {
                       ),
                     );
                     setState(() {
-                      _attachmentsLengthSum -= len;
+                      _attachmentsLengthSum -= length;
                       _attachments.removeAt(
                         index,
                       );
@@ -433,7 +440,7 @@ class _ComposePageState extends State<ComposePage> {
               ? sendingText
               : _isComposing
                   ? Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -449,7 +456,7 @@ class _ComposePageState extends State<ComposePage> {
                           ConstrainedBox(
                             constraints: BoxConstraints(
                               maxWidth: 550,
-                              maxHeight: 80 + min(_attachments.length, 3) * 20,
+                              maxHeight: 70 + min(_attachments.length, 3) * 20,
                             ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,15 +490,13 @@ class _ComposePageState extends State<ComposePage> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Padding(
-                                    padding: EdgeInsets.only(bottom: 8),
-                                    child: Text(
-                                      '已发送邮件',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                      ),
+                                  const Text(
+                                    '已发送邮件',
+                                    style: TextStyle(
+                                      fontSize: 20,
                                     ),
                                   ),
+                                  const SizedBox(height: 8),
                                   Expanded(
                                     child: Padding(
                                       padding: const EdgeInsets.all(20),
@@ -507,17 +512,23 @@ class _ComposePageState extends State<ComposePage> {
   }
 }
 
-class NewEmailDetailScreen extends StatelessWidget {
-  const NewEmailDetailScreen({
+class SentEmailDetailPage extends StatelessWidget {
+  const SentEmailDetailPage({
     super.key,
     required this.email,
     required this.onBack,
   });
+
   final NewEmail email;
+
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
+    const style = TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
+
+    const sizedBox = SizedBox(height: 4);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('主题: ${email.subject}'),
@@ -533,33 +544,52 @@ class NewEmailDetailScreen extends StatelessWidget {
           children: [
             Text(
               '发件人: ${email.from}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: style,
             ),
+            sizedBox,
             Text(
               '收件人: ${email.to}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: style,
             ),
+            sizedBox,
             Text(
               '时间: ${email.date}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: style,
             ),
-            Text.rich(
-              TextSpan(
-                text: '附件:\n',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                children: email.attachments.map((attachment) {
-                  return TextSpan(
-                    text: '$attachment\n',
-                    style: const TextStyle(fontSize: 16),
-                  );
-                }).toList(),
-              ),
-            ),
+            sizedBox,
+            email.attachments.isNotEmpty
+                ? Text.rich(
+                    TextSpan(
+                      text: '附件:\n',
+                      style: style,
+                      children: email.attachments.map((attachment) {
+                        return TextSpan(
+                          text: '$attachment\n',
+                          style: const TextStyle(fontSize: 16),
+                        );
+                      }).toList(),
+                    ),
+                  )
+                : const Text(
+                    '[无附件]',
+                    style: style,
+                  ),
             const SizedBox(height: 20),
-            Text(
-              email.body,
-              style: const TextStyle(fontSize: 16),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 550, maxWidth: 550),
+                child: SingleChildScrollView(
+                  child: email.body.isNotEmpty
+                      ? Text(
+                          email.body,
+                          style: const TextStyle(fontSize: 16),
+                        )
+                      : const Text(
+                          '[无正文]',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                ),
+              ),
             ),
           ],
         ),

@@ -38,23 +38,14 @@ pub async fn main_logic() {
         match dart_signal.message.action {
             // Login
             0 => {
-                user = None;
-                smtp_cli = None;
-                imap_cli = None;
-                uid_to_detail = None;
-
                 // Build user
                 if let Some(user_proto) = user_proto_listener.recv().await {
                     if let Some(new_user) = User::build(user_proto.message) {
                         user = Some(new_user.to_owned());
                     } else {
-                        RustResult {
-                            result: false,
-                            info: String::from(
-                                "用户创建失败，请检查邮箱格式\n仅支持 qq.com | 163.com | 126.com",
-                            ),
-                        }
-                        .send_signal_to_dart();
+                        send_signal_failure(String::from(
+                            "用户创建失败，请检查邮箱格式\n仅支持 qq.com | 163.com | 126.com",
+                        ));
                         continue;
                     }
                 }
@@ -63,11 +54,7 @@ pub async fn main_logic() {
                 match user.as_ref().unwrap().connect_smtp() {
                     Ok(smtp_transport) => smtp_cli = Some(smtp_transport),
                     Err(e) => {
-                        RustResult {
-                            result: false,
-                            info: e.to_string(),
-                        }
-                        .send_signal_to_dart();
+                        send_signal_failure(e.to_string());
                         continue;
                     }
                 }
@@ -76,22 +63,13 @@ pub async fn main_logic() {
                 match user.as_ref().unwrap().connect_imap() {
                     Ok(imap_session) => imap_cli = Some(imap_session),
                     Err(e) => {
-                        RustResult {
-                            result: false,
-                            info: e.to_string(),
-                        }
-                        .send_signal_to_dart();
+                        send_signal_failure(e.to_string());
                         continue;
                     }
                 }
 
                 uid_to_detail = Some(HashMap::new());
-
-                RustResult {
-                    result: true,
-                    info: String::new(),
-                }
-                .send_signal_to_dart();
+                send_signal_succeed();
             }
 
             // Logout
@@ -100,22 +78,16 @@ pub async fn main_logic() {
                 user = None;
                 smtp_cli = None;
                 imap_cli = None;
-                RustResult {
-                    result: true,
-                    info: String::new(),
-                }
-                .send_signal_to_dart();
+                uid_to_detail = None;
+                send_signal_succeed();
             }
 
             // Send
             2 => {
                 if let Some(email_proto) = new_email_listener.recv().await {
-                    if user.as_ref().is_some() && smtp_cli.as_ref().is_some() {
-                        user.as_ref()
-                            .unwrap()
-                            .send(smtp_cli.as_ref().unwrap(), email_proto.message)
-                            .await;
-                    }
+                    user.as_ref()
+                        .unwrap()
+                        .send(smtp_cli.as_ref().unwrap(), email_proto.message);
                 }
             }
 
@@ -125,52 +97,35 @@ pub async fn main_logic() {
                     mailboxes: user
                         .as_ref()
                         .unwrap()
-                        .fetch_mailboxes(imap_cli.as_mut().unwrap())
-                        .await,
+                        .fetch_mailboxes(imap_cli.as_mut().unwrap()),
                 }
                 .send_signal_to_dart();
             }
 
-            // Fetch email
+            // Fetch email metadata
             4 => {
                 if let Some(mailbox_selection) = mailbox_request_listener.recv().await {
-                    match user
-                        .as_ref()
-                        .unwrap()
-                        .fetch_messages(
-                            imap_cli.as_mut().unwrap(),
-                            mailbox_selection.message.mailbox,
-                        )
-                        .await
-                    {
+                    match user.as_ref().unwrap().fetch_message_headers(
+                        imap_cli.as_mut().unwrap(),
+                        mailbox_selection.message.mailbox,
+                    ) {
                         Ok(email_metadatas) => {
-                            RustResult {
-                                result: true,
-                                info: String::new(),
-                            }
-                            .send_signal_to_dart();
+                            send_signal_succeed();
                             EmailMetadataFetch { email_metadatas }.send_signal_to_dart();
                         }
                         Err(e) => {
-                            RustResult {
-                                result: true,
-                                info: e.to_string(),
-                            }
-                            .send_signal_to_dart();
+                            send_signal_failure(e.to_string());
                         }
                     };
                 }
             }
 
+            // Fetch email detail
             5 => {
                 if let Some(email_detail_request) = email_detail_request_listener.recv().await {
                     let uid = email_detail_request.message.uid;
                     if uid_to_detail.as_ref().unwrap().contains_key(&uid) {
-                        RustResult {
-                            result: true,
-                            info: String::new(),
-                        }
-                        .send_signal_to_dart();
+                        send_signal_succeed();
                         uid_to_detail
                             .as_ref()
                             .unwrap()
@@ -178,32 +133,17 @@ pub async fn main_logic() {
                             .unwrap()
                             .send_signal_to_dart();
                     } else {
-                        match user
-                            .as_ref()
-                            .unwrap()
-                            .fetch_detail(
-                                imap_cli.as_mut().unwrap(),
-                                uid,
-                                email_detail_request.message.folder_path,
-                                uid_to_detail.as_mut().unwrap(),
-                            )
-                            .await
-                        {
+                        match user.as_ref().unwrap().fetch_detail(
+                            imap_cli.as_mut().unwrap(),
+                            uid,
+                            email_detail_request.message.folder_path,
+                            uid_to_detail.as_mut().unwrap(),
+                        ) {
                             Ok(email_detail_fetch) => {
-                                RustResult {
-                                    result: true,
-                                    info: String::new(),
-                                }
-                                .send_signal_to_dart();
+                                send_signal_succeed();
                                 email_detail_fetch.send_signal_to_dart();
                             }
-                            Err(e) => {
-                                RustResult {
-                                    result: false,
-                                    info: e.to_string(),
-                                }
-                                .send_signal_to_dart();
-                            }
+                            Err(e) => send_signal_failure(e.to_string()),
                         };
                     }
                 }
@@ -212,6 +152,22 @@ pub async fn main_logic() {
             _ => unreachable!(),
         };
     }
+}
+
+fn send_signal_succeed() {
+    RustResult {
+        result: true,
+        info: String::new(),
+    }
+    .send_signal_to_dart();
+}
+
+fn send_signal_failure(e: String) {
+    RustResult {
+        result: false,
+        info: e,
+    }
+    .send_signal_to_dart();
 }
 
 #[derive(Clone)]
@@ -245,13 +201,13 @@ impl User {
 
     fn connect_smtp(&self) -> Result<SmtpTransport, Box<dyn Error>> {
         // Open a remote connection to server
-        let smtp_cli_builder = SmtpTransport::relay(self.smtp_domain.as_str())
+        let smtp_cli = SmtpTransport::relay(self.smtp_domain.as_str())
             .unwrap()
             .credentials(Credentials::new(
                 self.email_addr.to_string(),
                 self.password.to_string(),
-            ));
-        let smtp_cli = smtp_cli_builder.build();
+            ))
+            .build();
 
         // Connectivity test & return
         match smtp_cli.test_connection() {
@@ -270,28 +226,27 @@ impl User {
         }
     }
 
-    pub async fn send(&self, smtp_cli: &SmtpTransport, new_email: NewEmail) {
+    fn send(&self, smtp_cli: &SmtpTransport, new_email: NewEmail) {
         let builder = Message::builder()
             .from(Mailbox::from(self.email_addr.clone()))
             .to(Mailbox::from(match new_email.to.parse::<Address>() {
                 Ok(to) => to,
                 Err(e) => {
-                    RustResult {
-                        result: false,
-                        info: e.to_string(),
-                    }
-                    .send_signal_to_dart();
+                    send_signal_failure(e.to_string());
                     return;
                 }
             }))
             .subject(new_email.subject);
 
+        // Build message
         let email = if new_email.attachments.is_empty() {
+            // Message with no attachment
             builder
                 .header(ContentType::TEXT_PLAIN)
                 .body(new_email.body)
                 .unwrap()
         } else {
+            // Message with attachments
             let mut multi_part = MultiPart::mixed().singlepart(
                 SinglePart::builder()
                     .header(header::ContentType::TEXT_PLAIN)
@@ -309,22 +264,14 @@ impl User {
             builder.multipart(multi_part).unwrap()
         };
 
-        // Send the message
+        // Send message
         match smtp_cli.send(&email) {
-            Ok(_) => RustResult {
-                result: true,
-                info: String::new(),
-            }
-            .send_signal_to_dart(),
-            Err(e) => RustResult {
-                result: false,
-                info: e.to_string(),
-            }
-            .send_signal_to_dart(),
+            Ok(_) => send_signal_succeed(),
+            Err(e) => send_signal_failure(e.to_string()),
         };
     }
 
-    pub async fn fetch_mailboxes(&self, imap_cli: &mut Session<Connection>) -> Vec<String> {
+    fn fetch_mailboxes(&self, imap_cli: &mut Session<Connection>) -> Vec<String> {
         imap_cli
             .list(Some(""), Some("*"))
             .unwrap()
@@ -340,26 +287,28 @@ impl User {
             .collect()
     }
 
-    pub async fn fetch_messages(
+    fn fetch_message_headers(
         &self,
         imap_cli: &mut Session<Connection>,
         mailbox: String,
     ) -> Result<Vec<EmailMetadata>, Box<dyn Error>> {
+        // Select mailbox
         imap_cli.select(&mailbox).unwrap();
+        let mut messages = vec![];
 
         // Fetch all messages from the mailbox
-        let mut messages = vec![];
         let mut i = 1;
         loop {
+            // Construct uid
             let uid = format!("{}:{}", mailbox, i);
 
             // Fetch metadata
-            let message = imap_cli.fetch(i.to_string(), "RFC822.HEADER").unwrap();
-            if message.is_empty() {
+            let fetch = imap_cli.fetch(i.to_string(), "RFC822.HEADER").unwrap();
+            if fetch.is_empty() {
                 break;
             }
-            let message_metadata = parse_message_header(message);
-            let parsed = match parse_mail(message_metadata.as_bytes()) {
+            let message_header = parse_message_header_or_body(fetch, true);
+            let parsed = match parse_mail(message_header.as_bytes()) {
                 Ok(p) => p,
                 Err(e) => return Err(Box::new(e)),
             };
@@ -378,45 +327,52 @@ impl User {
         Ok(messages)
     }
 
-    pub async fn fetch_detail(
+    fn fetch_detail(
         &self,
         imap_cli: &mut Session<Connection>,
         uid: String,
         folder_path: String,
         map: &mut HashMap<String, EmailDetailFetch>,
     ) -> Result<EmailDetailFetch, Box<dyn Error>> {
+        // Select mailbox and fetch
         let (mailbox, index) = parse_uid(uid.as_str());
         imap_cli.select(mailbox).unwrap();
-        let message = imap_cli.fetch(index.to_string(), "RFC822").unwrap();
-        let message_body = parse_message_body(message);
+        let fetch = imap_cli.fetch(index.to_string(), "RFC822").unwrap();
+
+        // Parse message body
+        let message_body = parse_message_header_or_body(fetch, false);
         let parsed = match parse_mail(message_body.as_bytes()) {
             Ok(p) => p,
             Err(e) => return Err(Box::new(e)),
         };
 
-        let download_path = PathBuf::from(folder_path);
-
         let mut attachments = vec![];
         let mut body = String::new();
 
+        let download_path = PathBuf::from(folder_path);
         for (i, part) in parsed.subparts.iter().enumerate() {
             let disposition = part.get_content_disposition();
-            if disposition.disposition == DispositionType::Attachment {
-                let default = format!("attachment_{}", i);
-                let filename = disposition.params.get("filename").unwrap_or(&default);
-                let filename = Path::new(filename).file_name().unwrap();
 
-                attachments.push(filename.to_string_lossy().into_owned());
+            match disposition.disposition {
+                DispositionType::Attachment => {
+                    let default = format!("attachment_{}", i);
+                    let filename = disposition.params.get("filename").unwrap_or(&default);
+                    let filename = Path::new(filename).file_name().unwrap();
 
-                let file_path = download_path.join(filename);
-                let content = part.get_body_raw()?;
-                save_attachment(file_path.to_str().unwrap(), &content)?;
-            } else if disposition.disposition == DispositionType::Inline {
-                body += &part.get_body()?.to_string();
+                    let file_path = download_path.join(filename);
+                    let content = part.get_body_raw()?;
+                    save_attachment(file_path.to_str().unwrap(), &content)?;
+                    attachments.push(filename.to_string_lossy().into_owned());
+                }
+                DispositionType::Inline => body += &part.get_body()?.to_string(),
+                _ => {}
             }
         }
 
-        let email_detail = EmailDetailFetch { attachments, body };
+        let email_detail = EmailDetailFetch {
+            attachments,
+            body: body.trim().to_string(),
+        };
         map.insert(uid, email_detail.to_owned());
         Ok(email_detail)
     }
@@ -442,27 +398,15 @@ fn save_attachment(filename: &str, content: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-fn parse_message_header(message: Fetches) -> String {
+fn parse_message_header_or_body(message: Fetches, is_header: bool) -> String {
     message
         .iter()
         .flat_map(|m| {
-            str::from_utf8(m.header().unwrap_or(b"message has no header"))
-                .unwrap_or("error parsing message body")
-                .lines()
-                .map(String::from)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn parse_message_body(message: Fetches) -> String {
-    message
-        .iter()
-        .flat_map(|m| {
-            str::from_utf8(m.body().unwrap_or(b"message has no body"))
-                .unwrap_or("error parsing message body")
-                .lines()
-                .map(String::from)
+            str::from_utf8(
+                (if is_header { m.header() } else { m.body() }).unwrap_or(b"error parsing message"),
+            )
+            .unwrap()
+            .lines()
         })
         .collect::<Vec<_>>()
         .join("\n")

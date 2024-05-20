@@ -9,7 +9,7 @@ package user;
 // 2: Send
 // 3: Fetch mailboxes
 // 4: Fetch email metadata
-// 5: Fetch email details
+// 5: Fetch email detail
 message Action {
   int32 action = 1;
 }
