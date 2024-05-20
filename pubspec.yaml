@@ -40,7 +40,4 @@ flutter:
   assets:
     - packages/eua_ui/images/github-mark.png
     - packages/eua_ui/images/github-mark-white.png
-    - packages/eua_ui/images/Flutter.png
-    - packages/eua_ui/images/Rust.png
-    - packages/eua_ui/images/Rust-white.png
   uses-material-design: true

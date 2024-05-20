@@ -265,14 +265,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _launchUrl(String desc) async {
-    final uri = switch (desc) {
-      'Github' => 'https://github.com/Somnia1337/EUA_UI',
-      'Flutter' => 'https://flutter.dev',
-      'Rust' => 'https://www.rust-lang.org/',
-      _ => '',
-    };
-    final url = Uri.parse(uri);
+  Future<void> _launchUrl() async {
+    final url = Uri.parse('https://github.com/Somnia1337/EUA_UI');
     await launchUrl(url);
   }
 
@@ -280,8 +274,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final currentBrightness = Theme.of(context).brightness;
 
-    const sizedBoxBig = SizedBox(height: 20);
-    const sizedBoxSmall = SizedBox(height: 12);
+    const sizedBox = SizedBox(height: 12);
 
     final emailAddrInputField = TextFormField(
       controller: _emailAddrController,
@@ -377,11 +370,31 @@ class _SettingsPageState extends State<SettingsPage> {
     const info = Column(
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
+          padding: EdgeInsets.only(bottom: 8),
           child: Text(
             '卢剑歌 2022141461145',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 18,
+              fontFamily: 'DingTalk',
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.zero,
+          child: Text(
+            'Made with',
+            style: TextStyle(
+              fontSize: 14,
+              fontFamily: 'DingTalk',
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Flutter🎯, Rust🦀 & Love❤',
+            style: TextStyle(
+              fontSize: 14,
               fontFamily: 'DingTalk',
             ),
           ),
@@ -400,59 +413,25 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     final githubImage = InkWell(
-      onTap: () {
-        _launchUrl('Github');
-      },
+      onTap: _launchUrl,
       child: Image.asset(
         currentBrightness == Brightness.light
             ? 'packages/eua_ui/images/github-mark.png'
             : 'packages/eua_ui/images/github-mark-white.png',
-        width: 40,
-        height: 40,
+        width: 50,
+        height: 50,
       ),
-    );
-    final flutterImage = InkWell(
-      onTap: () {
-        _launchUrl('Flutter');
-      },
-      child: Image.asset(
-        'packages/eua_ui/images/Flutter.png',
-        width: 30,
-      ),
-    );
-    final rustImage = InkWell(
-      onTap: () {
-        _launchUrl('Rust');
-      },
-      child: Image.asset(
-        currentBrightness == Brightness.light
-            ? 'packages/eua_ui/images/Rust.png'
-            : 'packages/eua_ui/images/Rust-white.png',
-        width: 37,
-      ),
-    );
-    final gallery = Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        flutterImage,
-        const SizedBox(
-          width: 20,
-        ),
-        rustImage,
-      ],
     );
 
     final customizationsAndInfo = Column(
       children: [
         logControlButton,
-        sizedBoxBig,
+        sizedBox,
         customizations,
-        sizedBoxSmall,
+        sizedBox,
         info,
-        sizedBoxSmall,
+        sizedBox,
         githubImage,
-        sizedBoxSmall,
-        gallery,
       ],
     );
 
@@ -467,7 +446,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       children: [
                         welcome,
-                        sizedBoxSmall,
+                        sizedBox,
                         customizationsAndInfo,
                       ],
                     ),
@@ -480,12 +459,11 @@ class _SettingsPageState extends State<SettingsPage> {
                           constraints: const BoxConstraints(maxWidth: 250),
                           child: emailAddrInputField,
                         ),
-                        sizedBoxSmall,
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 250),
                           child: passwordInputField,
                         ),
-                        sizedBoxSmall,
+                        sizedBox,
                         customizationsAndInfo,
                       ],
                     ),
