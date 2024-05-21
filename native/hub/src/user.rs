@@ -1,3 +1,5 @@
+// todo: 哈希元信息 / 下载前 10 封
+
 use crate::messages::user::*;
 
 use std::{
@@ -22,82 +24,91 @@ use mailparse::*;
 
 use mime_guess::from_path;
 
-pub async fn main_logic() {
-    let mut user: Option<User> = None;
-    let mut smtp_cli: Option<SmtpTransport> = None;
-    let mut imap_cli: Option<Session<Connection>> = None;
-    let mut uid_to_detail: Option<HashMap<String, EmailDetailFetch>> = None;
+pub async fn login_as_new_user() {
+    let mut login_action_listener = LoginAction::get_dart_signal_receiver();
+    let mut user_proto_listener = UserProto::get_dart_signal_receiver();
+
+    while let Some(dart_signal) = login_action_listener.recv().await {
+        if dart_signal.message.login_action {
+            let mut user: Option<User> = None;
+            let smtp_cli: Option<SmtpTransport>;
+            let mut imap_cli: Option<Session<Connection>>;
+
+            // Build user
+            if let Some(user_proto) = user_proto_listener.recv().await {
+                if let Some(new_user) = User::build(user_proto.message) {
+                    user = Some(new_user.to_owned());
+                } else {
+                    send_signal_failure(String::from(
+                        "用户创建失败，请检查邮箱格式\n仅支持 qq.com | 163.com | 126.com",
+                    ));
+                    continue;
+                }
+            }
+
+            // Connect to SMTP server
+            match user.as_ref().unwrap().connect_smtp() {
+                Ok(smtp_transport) => smtp_cli = Some(smtp_transport),
+                Err(e) => {
+                    send_signal_failure(e.to_string());
+                    continue;
+                }
+            }
+
+            // Connect to IMAP server
+            match user.as_ref().unwrap().connect_imap() {
+                Ok(imap_session) => imap_cli = Some(imap_session),
+                Err(e) => {
+                    send_signal_failure(e.to_string());
+                    continue;
+                }
+            }
+
+            send_signal_succeed();
+
+            let _ = actions_after_login(
+                user.as_ref().unwrap(),
+                smtp_cli.as_ref().unwrap(),
+                imap_cli.as_mut().unwrap(),
+            )
+            .await;
+        };
+    }
+}
+
+async fn actions_after_login(
+    user: &User,
+    smtp_cli: &SmtpTransport,
+    imap_cli: &mut Session<Connection>,
+) {
+    let mut uid_to_detail: HashMap<String, EmailDetail> = HashMap::new();
+    let mut starts: HashMap<String, usize> = HashMap::new();
 
     let mut action_listener = Action::get_dart_signal_receiver();
-    let mut user_proto_listener = UserProto::get_dart_signal_receiver();
     let mut new_email_listener = NewEmail::get_dart_signal_receiver();
     let mut mailbox_request_listener = MailboxRequest::get_dart_signal_receiver();
     let mut email_detail_request_listener = EmailDetailRequest::get_dart_signal_receiver();
 
     while let Some(dart_signal) = action_listener.recv().await {
         match dart_signal.message.action {
-            // Login
-            0 => {
-                // Build user
-                if let Some(user_proto) = user_proto_listener.recv().await {
-                    if let Some(new_user) = User::build(user_proto.message) {
-                        user = Some(new_user.to_owned());
-                    } else {
-                        send_signal_failure(String::from(
-                            "用户创建失败，请检查邮箱格式\n仅支持 qq.com | 163.com | 126.com",
-                        ));
-                        continue;
-                    }
-                }
-
-                // Connect to SMTP server
-                match user.as_ref().unwrap().connect_smtp() {
-                    Ok(smtp_transport) => smtp_cli = Some(smtp_transport),
-                    Err(e) => {
-                        send_signal_failure(e.to_string());
-                        continue;
-                    }
-                }
-
-                // Connect to IMAP server
-                match user.as_ref().unwrap().connect_imap() {
-                    Ok(imap_session) => imap_cli = Some(imap_session),
-                    Err(e) => {
-                        send_signal_failure(e.to_string());
-                        continue;
-                    }
-                }
-
-                uid_to_detail = Some(HashMap::new());
-                send_signal_succeed();
-            }
-
             // Logout
             1 => {
-                let _ = imap_cli.as_mut().unwrap().logout();
-                user = None;
-                smtp_cli = None;
-                imap_cli = None;
-                uid_to_detail = None;
+                let _ = imap_cli.logout();
                 send_signal_succeed();
+                return;
             }
 
             // Send
             2 => {
                 if let Some(email_proto) = new_email_listener.recv().await {
-                    user.as_ref()
-                        .unwrap()
-                        .send(smtp_cli.as_ref().unwrap(), email_proto.message);
+                    user.send(smtp_cli, email_proto.message);
                 }
             }
 
             // Fetch mailboxes
             3 => {
                 MailboxesFetch {
-                    mailboxes: user
-                        .as_ref()
-                        .unwrap()
-                        .fetch_mailboxes(imap_cli.as_mut().unwrap()),
+                    mailboxes: user.fetch_mailboxes(imap_cli),
                 }
                 .send_signal_to_dart();
             }
@@ -105,17 +116,13 @@ pub async fn main_logic() {
             // Fetch email metadata
             4 => {
                 if let Some(mailbox_selection) = mailbox_request_listener.recv().await {
-                    match user.as_ref().unwrap().fetch_message_headers(
-                        imap_cli.as_mut().unwrap(),
-                        mailbox_selection.message.mailbox,
+                    match user.fetch_metadatas(
+                        imap_cli,
+                        mailbox_selection.message.mailbox.to_owned(),
+                        &mut starts,
                     ) {
-                        Ok(email_metadatas) => {
-                            send_signal_succeed();
-                            EmailMetadataFetch { email_metadatas }.send_signal_to_dart();
-                        }
-                        Err(e) => {
-                            send_signal_failure(e.to_string());
-                        }
+                        Ok(_) => send_signal_succeed(),
+                        Err(e) => send_signal_failure(e.to_string()),
                     };
                 }
             }
@@ -124,20 +131,19 @@ pub async fn main_logic() {
             5 => {
                 if let Some(email_detail_request) = email_detail_request_listener.recv().await {
                     let uid = email_detail_request.message.uid;
-                    if uid_to_detail.as_ref().unwrap().contains_key(&uid) {
+                    let email = uid_to_detail.get(&uid);
+                    let mut is_detail_hashed = false;
+                    if let Some(detail) = email {
+                        is_detail_hashed = true;
                         send_signal_succeed();
-                        uid_to_detail
-                            .as_ref()
-                            .unwrap()
-                            .get(&uid)
-                            .unwrap()
-                            .send_signal_to_dart();
-                    } else {
-                        match user.as_ref().unwrap().fetch_detail(
-                            imap_cli.as_mut().unwrap(),
+                        detail.send_signal_to_dart();
+                    }
+                    if !is_detail_hashed {
+                        match user.fetch_detail(
+                            imap_cli,
                             uid,
                             email_detail_request.message.folder_path,
-                            uid_to_detail.as_mut().unwrap(),
+                            &mut uid_to_detail,
                         ) {
                             Ok(email_detail_fetch) => {
                                 send_signal_succeed();
@@ -150,7 +156,7 @@ pub async fn main_logic() {
             }
 
             _ => unreachable!(),
-        };
+        }
     }
 }
 
@@ -287,17 +293,17 @@ impl User {
             .collect()
     }
 
-    fn fetch_message_headers(
+    fn fetch_metadatas(
         &self,
         imap_cli: &mut Session<Connection>,
         mailbox: String,
-    ) -> Result<Vec<EmailMetadata>, Box<dyn Error>> {
+        starts: &mut HashMap<String, usize>,
+    ) -> Result<(), Box<dyn Error>> {
         // Select mailbox
         imap_cli.select(&mailbox).unwrap();
-        let mut messages = vec![];
 
         // Fetch all messages from the mailbox
-        let mut i = 1;
+        let i = starts.entry(mailbox.to_owned()).or_insert(1);
         loop {
             // Construct uid
             let uid = format!("{}:{}", mailbox, i);
@@ -313,18 +319,27 @@ impl User {
                 Err(e) => return Err(Box::new(e)),
             };
 
-            messages.push(EmailMetadata {
+            EmailMetadata {
                 uid,
                 from: get_header(&parsed, "From", "[未知发件人]"),
                 to: get_header(&parsed, "To", "[未知收件人]"),
                 subject: get_header(&parsed, "Subject", "[无主题]"),
                 date: get_header(&parsed, "Date", "[未知日期]"),
-            });
+            }
+            .send_signal_to_dart();
 
-            i += 1;
+            *i += 1;
         }
 
-        Ok(messages)
+        EmailMetadata {
+            uid: String::new(),
+            from: String::new(),
+            to: String::new(),
+            subject: String::new(),
+            date: String::new(),
+        }
+        .send_signal_to_dart();
+        Ok(())
     }
 
     fn fetch_detail(
@@ -332,8 +347,8 @@ impl User {
         imap_cli: &mut Session<Connection>,
         uid: String,
         folder_path: String,
-        map: &mut HashMap<String, EmailDetailFetch>,
-    ) -> Result<EmailDetailFetch, Box<dyn Error>> {
+        uid_to_detail: &mut HashMap<String, EmailDetail>,
+    ) -> Result<EmailDetail, Box<dyn Error>> {
         // Select mailbox and fetch
         let (mailbox, index) = parse_uid(uid.as_str());
         imap_cli.select(mailbox).unwrap();
@@ -376,11 +391,11 @@ impl User {
             }
         }
 
-        let email_detail = EmailDetailFetch {
+        let email_detail = EmailDetail {
             attachments,
             body: body.trim().to_string(),
         };
-        map.insert(uid, email_detail.to_owned());
+        uid_to_detail.insert(uid, email_detail.to_owned());
         Ok(email_detail)
     }
 }
@@ -412,7 +427,7 @@ fn parse_message_header_or_body(message: Fetches, is_header: bool) -> String {
             str::from_utf8(
                 (if is_header { m.header() } else { m.body() }).unwrap_or(b"error parsing message"),
             )
-            .unwrap()
+            .unwrap_or("error parsing message")
             .lines()
         })
         .collect::<Vec<_>>()
@@ -423,7 +438,8 @@ fn get_header(parsed: &ParsedMail, key: &str, default: &str) -> String {
     parsed
         .headers
         .get_first_value(key)
-        .unwrap_or(default.to_string())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| default.to_string())
 }
 
 fn parse_uid(uid: &str) -> (String, usize) {

@@ -17,8 +17,6 @@ class ComposePage extends StatefulWidget {
 }
 
 class _ComposePageState extends State<ComposePage> {
-  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
-
   final List<File> _attachments = [];
   final List<NewEmail> _sentEmails = [];
 
@@ -143,7 +141,7 @@ class _ComposePageState extends State<ComposePage> {
     } else {
       _showSnackBar(
         '😥邮件发送失败: ${sendResult.info}',
-        _red,
+        red,
         const Duration(seconds: 3),
       );
     }
@@ -171,14 +169,14 @@ class _ComposePageState extends State<ComposePage> {
           } else {
             _showSnackBar(
               '😵‍💫附件的总大小不能超过 50MB！',
-              _red,
+              red,
               const Duration(seconds: 2),
             );
           }
         } else {
           _showSnackBar(
             '😵‍💫重复附件: ${file.path}',
-            _red,
+            red,
             const Duration(seconds: 2),
           );
         }
@@ -318,7 +316,7 @@ class _ComposePageState extends State<ComposePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '已选择 ${_attachmentsLengthSum.toStringAsFixed(1)}MB',
+          '已选择 ${_attachments.length} 个附件 | ${_attachmentsLengthSum.toStringAsFixed(1)} MB',
           style: const TextStyle(
             fontSize: 16,
           ),
@@ -382,7 +380,7 @@ class _ComposePageState extends State<ComposePage> {
       alignment: Alignment.topLeft,
     );
     const attachmentInfo = Text(
-      '由于服务器限制，附件的总大小不能超过 50MB',
+      '由于服务器限制，附件的总大小不能超过 50 MB',
       style: TextStyle(
         fontSize: 16,
       ),

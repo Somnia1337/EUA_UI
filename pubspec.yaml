@@ -3,12 +3,13 @@ description: "An email user agent implemented in Flutter & Rust."
 
 publish_to: 'none'
 
-version: 0.5.3
+version: 0.5.4
 
 environment:
   sdk: '>=3.3.4 <4.0.0'
 
 dependencies:
+  another_flutter_splash_screen: ^1.2.0
   cupertino_icons: ^1.0.6
   file_picker: ^8.0.3
   flex_color_picker: ^3.5.0
@@ -43,4 +44,5 @@ flutter:
   assets:
     - packages/eua_ui/images/github-mark.png
     - packages/eua_ui/images/github-mark-white.png
+    - packages/eua_ui/images/splash.png
   uses-material-design: true

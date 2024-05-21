@@ -15,11 +15,9 @@ class InboxPage extends StatefulWidget {
 }
 
 class _InboxPageState extends State<InboxPage> {
-  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
-
   final _mailboxesFetchListener = MailboxesFetch.rustSignalStream;
 
-  int _selectedMailbox = 0;
+  int _selectedMailboxIndex = 0;
   bool _isFetchingMailboxes = false;
   bool _isMailboxesFetched = false;
   bool _isNetease = false;
@@ -53,7 +51,7 @@ class _InboxPageState extends State<InboxPage> {
   void _resetState() {
     _mailboxes.clear();
     setState(() {
-      _selectedMailbox = 0;
+      _selectedMailboxIndex = 0;
       _isFetchingMailboxes = false;
       _isMailboxesFetched = false;
       _isNetease = false;
@@ -63,7 +61,7 @@ class _InboxPageState extends State<InboxPage> {
 
   void _onItemTapped(int index) {
     setState(() {
-      _selectedMailbox = index;
+      _selectedMailboxIndex = index;
     });
   }
 
@@ -158,7 +156,7 @@ class _InboxPageState extends State<InboxPage> {
         } else {
           _showSnackBar(
             '❗必须选择附件保存位置才能下载邮件',
-            _red,
+            red,
             const Duration(seconds: 2),
           );
         }
@@ -196,14 +194,14 @@ class _InboxPageState extends State<InboxPage> {
               ? Row(
                   children: [
                     NavigationRail(
-                      selectedIndex: _selectedMailbox,
+                      selectedIndex: _selectedMailboxIndex,
                       onDestinationSelected: _onItemTapped,
                       labelType: NavigationRailLabelType.all,
                       destinations: mailboxDestinations,
                     ),
                     Expanded(
                       child: IndexedStack(
-                        index: _selectedMailbox,
+                        index: _selectedMailboxIndex,
                         children: _mailboxes.map((mailbox) {
                           return Center(
                             child: MailboxPage(
@@ -236,8 +234,8 @@ class MailboxPage extends StatefulWidget {
 }
 
 class _MailboxPageState extends State<MailboxPage> {
-  final _emailMetadataFetchListener = EmailMetadataFetch.rustSignalStream;
-  final _emailDetailFetchListener = EmailDetailFetch.rustSignalStream;
+  final _emailMetadataListener = EmailMetadata.rustSignalStream;
+  final _emailDetailListener = EmailDetail.rustSignalStream;
   final _rustResultListener = RustResult.rustSignalStream;
 
   bool _triedFetching = false;
@@ -246,14 +244,13 @@ class _MailboxPageState extends State<MailboxPage> {
   bool _isFetchingDetail = false;
   bool _isReadingDetail = false;
   late String _folderPath;
-  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
   final _style = const TextStyle(
     fontSize: 20,
   );
 
   late String _mailbox;
   EmailMetadata? _selectedEmail;
-  EmailDetailFetch? _emailDetail;
+  EmailDetail? _emailDetail;
   List<EmailMetadata> emailMetadatas = [];
 
   @override
@@ -265,6 +262,8 @@ class _MailboxPageState extends State<MailboxPage> {
   }
 
   Future<void> _fetchEmailMetadatas() async {
+    final countBefore = emailMetadatas.length;
+
     // Send signals
     pb.Action(action: 4).sendSignalToRust();
     MailboxRequest(mailbox: _mailbox).sendSignalToRust();
@@ -273,20 +272,33 @@ class _MailboxPageState extends State<MailboxPage> {
     setState(() {
       _isFetchingMetadata = true;
     });
-    final fetchMessagesResult = (await _rustResultListener.first).message;
+    await for (final metadata in _emailMetadataListener) {
+      final emailMetadata = metadata.message;
+      if (emailMetadata.uid.isEmpty) {
+        break;
+      }
+      setState(() {
+        emailMetadatas.add(emailMetadata);
+      });
+    }
+    final metadataFetchResult = (await _rustResultListener.first).message;
     setState(() {
       _isFetchingMetadata = false;
     });
 
     // Handle result
-    if (fetchMessagesResult.result) {
-      final emailMetadataFetch =
-          (await _emailMetadataFetchListener.first).message;
-      emailMetadatas = emailMetadataFetch.emailMetadatas;
+    if (metadataFetchResult.result) {
+      _showSnackBar(
+        emailMetadatas.length == countBefore
+            ? '没有新邮件'
+            : '新到达 ${emailMetadatas.length - countBefore} 封邮件',
+        null,
+        const Duration(seconds: 1),
+      );
     } else {
       _showSnackBar(
-        '下载失败: ${fetchMessagesResult.info}',
-        _red,
+        '下载失败: ${metadataFetchResult.info}',
+        red,
         const Duration(seconds: 3),
       );
     }
@@ -316,13 +328,13 @@ class _MailboxPageState extends State<MailboxPage> {
 
     // Handle result
     if (fetchMessagesResult.result) {
-      final emailDetailFetch = (await _emailDetailFetchListener.first).message;
+      final emailDetailFetch = (await _emailDetailListener.first).message;
       _emailDetail = emailDetailFetch;
       return true;
     }
     _showSnackBar(
       '下载失败: ${fetchMessagesResult.info}',
-      _red,
+      red,
       const Duration(seconds: 3),
     );
     return false;
@@ -346,17 +358,41 @@ class _MailboxPageState extends State<MailboxPage> {
 
   @override
   Widget build(BuildContext context) {
+    final recvEmailList = ListView.builder(
+      shrinkWrap: true,
+      itemCount: emailMetadatas.length,
+      itemBuilder: (context, index) {
+        final email = emailMetadatas[index];
+        return ListTile(
+          title: Text(email.subject),
+          subtitle: Text(
+            'From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}',
+          ),
+          onTap: () async {
+            if (await _fetchEmailDetail(
+              email,
+              _folderPath,
+            )) {
+              setState(() {
+                _selectedEmail = email;
+                _isReadingDetail = true;
+              });
+            }
+          },
+        );
+      },
+    );
+
     return Scaffold(
       appBar: _isReadingDetail
           ? null
           : AppBar(
-              title: Text('收件箱: $_mailbox'),
+              title: Text('$_mailbox 中有 ${emailMetadatas.length} 封邮件'),
             ),
       floatingActionButton:
           _isFetchingMetadata || _isReadingDetail || _isFetchingDetail
               ? null
               : FloatingActionButton(
-                  autofocus: true,
                   onPressed: _fetchEmailMetadatas,
                   tooltip: _triedFetching ? '刷新' : '下载邮件',
                   child: Icon(_triedFetching ? Icons.refresh : Icons.download),
@@ -369,7 +405,7 @@ class _MailboxPageState extends State<MailboxPage> {
                   Expanded(
                     child: EmailDetailPage(
                       emailMetadata: _selectedEmail ?? EmailMetadata(),
-                      emailDetail: _emailDetail ?? EmailDetailFetch(),
+                      emailDetail: _emailDetail ?? EmailDetail(),
                       folderPath: _folderPath,
                       onBack: () {
                         setState(() {
@@ -382,12 +418,12 @@ class _MailboxPageState extends State<MailboxPage> {
               : [
                   ConstrainedBox(
                     constraints:
-                        const BoxConstraints(maxHeight: 350, maxWidth: 400),
+                        const BoxConstraints(maxHeight: 350, maxWidth: 500),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: _isFetchingMetadata
                           ? [
-                              Text('正在下载邮件...', style: _style),
+                              Text('正在下载邮件元信息...', style: _style),
                             ]
                           : _isFetchingDetail
                               ? [
@@ -400,34 +436,7 @@ class _MailboxPageState extends State<MailboxPage> {
                                           Expanded(
                                             child: Padding(
                                               padding: const EdgeInsets.all(20),
-                                              child: ListView.builder(
-                                                shrinkWrap: true,
-                                                itemCount:
-                                                    emailMetadatas.length,
-                                                itemBuilder: (context, index) {
-                                                  final email =
-                                                      emailMetadatas[index];
-                                                  return ListTile(
-                                                    title: Text(email.subject),
-                                                    subtitle: Text(
-                                                      'From: ${email.from}\nTo: ${email.to}\nDate: ${email.date}',
-                                                    ),
-                                                    onTap: () async {
-                                                      if (await _fetchEmailDetail(
-                                                        email,
-                                                        _folderPath,
-                                                      )) {
-                                                        setState(() {
-                                                          _selectedEmail =
-                                                              email;
-                                                          _isReadingDetail =
-                                                              true;
-                                                        });
-                                                      }
-                                                    },
-                                                  );
-                                                },
-                                              ),
+                                              child: recvEmailList,
                                             ),
                                           ),
                                         ]
@@ -456,7 +465,7 @@ class EmailDetailPage extends StatefulWidget {
   });
 
   final EmailMetadata emailMetadata;
-  final EmailDetailFetch emailDetail;
+  final EmailDetail emailDetail;
   final VoidCallback onBack;
   final String folderPath;
 
@@ -465,7 +474,6 @@ class EmailDetailPage extends StatefulWidget {
 }
 
 class _EmailDetailPageState extends State<EmailDetailPage> {
-  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
   final _style = const TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
 
   late String folderPath = widget.folderPath;
@@ -475,7 +483,7 @@ class _EmailDetailPageState extends State<EmailDetailPage> {
     if (await canLaunchUrl(folderUri)) {
       await launchUrl(folderUri);
     } else {
-      _showSnackBar('❌无法打开 $folderPath', _red, const Duration(seconds: 3));
+      _showSnackBar('❌无法打开 $folderPath', red, const Duration(seconds: 3));
     }
   }
 

@@ -4,6 +4,8 @@ import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+const red = Color.fromRGBO(242, 93, 80, 0.8);
+
 class ColorChangeNotifier extends ChangeNotifier {
   late Color seedColor;
 
@@ -34,8 +36,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  final _red = const Color.fromRGBO(233, 95, 89, 0.8);
-
   final _emailAddrController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
@@ -48,7 +48,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String _userEmailAddr = '';
 
-  Color _pickerColor = const Color.fromRGBO(56, 132, 255, 1);
+  Color _pickerColor = const Color.fromRGBO(2, 125, 253, 1);
 
   @override
   void dispose() {
@@ -108,21 +108,21 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_emailAddrController.text == '' && _passwordController.text == '') {
       _showSnackBar(
         '😵‍💫"邮箱"和"授权码"是必填字段！',
-        _red,
+        red,
         const Duration(seconds: 2),
       );
       return Future.value(false);
     }
     if (_emailAddrController.text == '') {
-      _showSnackBar('😵‍💫"邮箱"是必填字段！', _red, const Duration(seconds: 2));
+      _showSnackBar('😵‍💫"邮箱"是必填字段！', red, const Duration(seconds: 2));
       return Future.value(false);
     }
     if (_passwordController.text == '') {
-      _showSnackBar('😵‍💫"授权码"是必填字段！', _red, const Duration(seconds: 2));
+      _showSnackBar('😵‍💫"授权码"是必填字段！', red, const Duration(seconds: 2));
       return Future.value(false);
     }
 
-    pb.Action(action: 0).sendSignalToRust();
+    LoginAction(loginAction: true).sendSignalToRust();
     UserProto(
       emailAddr: _emailAddrController.text,
       password: _passwordController.text,
@@ -139,7 +139,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     _showSnackBar(
       '😥登录失败: ${loginResult.info}',
-      _red,
+      red,
       const Duration(seconds: 3),
     );
     return false;
@@ -154,7 +154,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     _showSnackBar(
       '😥退出登录失败: ${logoutResult.info}',
-      _red,
+      red,
       const Duration(seconds: 3),
     );
     return false;
@@ -170,12 +170,12 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ColorPicker(
               color: _pickerColor,
               onColorChanged: (color) {
-                if (widget.onColorChanged != null) {
-                  widget.onColorChanged!(seedColor: color);
-                }
                 setState(() {
                   _pickerColor = color;
                 });
+                if (widget.onColorChanged != null) {
+                  widget.onColorChanged!(seedColor: color);
+                }
               },
               borderRadius: 30,
               spacing: 8,
@@ -200,18 +200,25 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           actions: [
             TextButton(
-              child: const Text('重置'),
+              child: Text(
+                '重置',
+                style: TextStyle(color: _pickerColor),
+              ),
               onPressed: () {
                 setState(() {
-                  _pickerColor = const Color.fromRGBO(56, 132, 255, 1);
-                  if (widget.onColorChanged != null) {
-                    widget.onColorChanged!(seedColor: _pickerColor);
-                  }
+                  _pickerColor = const Color.fromRGBO(2, 125, 253, 1);
                 });
+                if (widget.onColorChanged != null) {
+                  widget.onColorChanged!(seedColor: _pickerColor);
+                }
+                Navigator.of(context).pop();
               },
             ),
             TextButton(
-              child: const Text('完成'),
+              child: Text(
+                '完成',
+                style: TextStyle(color: _pickerColor),
+              ),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -390,14 +397,14 @@ class _SettingsPageState extends State<SettingsPage> {
           height: 8,
         ),
         Text(
-          'Made with',
+          'Built with',
           style: TextStyle(
             fontSize: 16,
             fontFamily: 'DingTalk',
           ),
         ),
         Text(
-          '🎯Flutter, 🦀Rust & 🩷Love.',
+          '🎯Dart, 🦀Rust & 🩷Love.',
           style: TextStyle(
             fontSize: 16,
             fontFamily: 'DingTalk',
@@ -407,7 +414,7 @@ class _SettingsPageState extends State<SettingsPage> {
           height: 8,
         ),
         Text(
-          'v0.5.3',
+          'v0.5.4',
           style: TextStyle(
             fontSize: 16,
             fontFamily: 'JetbrainsMONO',
@@ -423,7 +430,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ? 'packages/eua_ui/images/github-mark.png'
             : 'packages/eua_ui/images/github-mark-white.png',
         width: 50,
-        height: 50,
       ),
     );
 

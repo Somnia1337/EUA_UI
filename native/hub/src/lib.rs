@@ -6,5 +6,5 @@ mod user;
 rinf::write_interface!();
 
 async fn main() {
-    tokio::spawn(user::main_logic());
+    tokio::spawn(user::login_as_new_user());
 }

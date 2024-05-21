@@ -1,3 +1,4 @@
+import 'package:another_flutter_splash_screen/another_flutter_splash_screen.dart';
 import 'package:eua_ui/compose.dart';
 import 'package:eua_ui/inbox.dart';
 import 'package:eua_ui/settings.dart';
@@ -15,9 +16,55 @@ void main() async {
         ChangeNotifierProvider(create: (_) => LoginStatusNotifier()),
         ChangeNotifierProvider(create: (_) => SeedColorNotifier()),
       ],
-      child: const MainPage(),
+      child: const SplashPage(),
     ),
   );
+}
+
+class SplashPage extends StatelessWidget {
+  const SplashPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const sizedBox = SizedBox(
+      height: 40,
+    );
+
+    return MaterialApp(
+      home: Scaffold(
+        body: FlutterSplashScreen(
+          duration: const Duration(seconds: 5),
+          nextScreen: const MainPage(),
+          backgroundColor: Colors.white,
+          splashScreenBody: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  '谐声收藏家',
+                  style: TextStyle(fontSize: 32, fontFamily: 'DingTalk'),
+                ),
+                sizedBox,
+                Image.asset(
+                  'packages/eua_ui/images/splash.png',
+                  width: 200,
+                ),
+                sizedBox,
+                const Text(
+                  '你的 📧 用户代理',
+                  style: TextStyle(fontSize: 20, fontFamily: 'DingTalk'),
+                ),
+                const Text(
+                  '正在启动...',
+                  style: TextStyle(fontSize: 20),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class LoginStatusNotifier extends ChangeNotifier {
@@ -50,7 +97,7 @@ class _MainPageState extends State<MainPage> {
   bool _isLoggedIn = false;
   bool _isDarkMode = false;
 
-  Color _seedColor = const Color.fromRGBO(56, 132, 255, 1);
+  Color _seedColor = const Color.fromRGBO(2, 125, 253, 1);
   late ThemeData _lightTheme;
   late ThemeData _darkTheme;
 
@@ -128,7 +175,6 @@ class _MainPageState extends State<MainPage> {
             '谐声收藏家',
             style: TextStyle(
               fontSize: 26,
-              fontWeight: FontWeight.bold,
               fontFamily: headerFont,
             ),
           ),
@@ -137,7 +183,6 @@ class _MainPageState extends State<MainPage> {
           '你的 📧 用户代理',
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.bold,
             fontFamily: headerFont,
           ),
         ),
@@ -224,6 +269,8 @@ class _MainPageState extends State<MainPage> {
     );
 
     return MaterialApp(
+      title: '谐声收藏家',
+      theme: _isDarkMode ? _darkTheme : _lightTheme,
       home: Scaffold(
         body: Row(
           children: [
@@ -242,7 +289,6 @@ class _MainPageState extends State<MainPage> {
           ],
         ),
       ),
-      theme: _isDarkMode ? _darkTheme : _lightTheme,
     );
   }
 }

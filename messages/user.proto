@@ -4,7 +4,12 @@ package user;
 // * Dart -> Rust
 
 // [RINF:DART-SIGNAL]
-// 0: Login
+// true: Login
+message LoginAction {
+  bool login_action = 1;
+}
+
+// [RINF:DART-SIGNAL]
 // 1: Logout
 // 2: Send
 // 3: Fetch mailboxes
@@ -55,10 +60,6 @@ message MailboxesFetch {
 }
 
 // [RINF:RUST-SIGNAL]
-message EmailMetadataFetch {
-  repeated EmailMetadata email_metadatas = 1;
-}
-
 message EmailMetadata {
   string uid = 1;
   string from = 2;
@@ -68,7 +69,7 @@ message EmailMetadata {
 }
 
 // [RINF:RUST-SIGNAL]
-message EmailDetailFetch {
+message EmailDetail {
   repeated string attachments = 1;
   string body = 2;
 }
