@@ -15,6 +15,7 @@ class InboxPage extends StatefulWidget {
 }
 
 class _InboxPageState extends State<InboxPage> {
+  final _rustResultListener = RustResult.rustSignalStream;
   final _mailboxesFetchListener = MailboxesFetch.rustSignalStream;
 
   int _selectedMailboxIndex = 0;
@@ -104,16 +105,25 @@ class _InboxPageState extends State<InboxPage> {
     setState(() {
       _isFetchingMailboxes = true;
     });
-    final mailboxesFetched = (await _mailboxesFetchListener.first).message;
+    final mailboxesFetchResult = (await _rustResultListener.first).message;
     setState(() {
       _isFetchingMailboxes = false;
     });
 
     // Handle result
-    _mailboxes = mailboxesFetched.mailboxes;
-    setState(() {
-      _isMailboxesFetched = true;
-    });
+    if (mailboxesFetchResult.result) {
+      final mailboxesFetched = (await _mailboxesFetchListener.first).message;
+      _mailboxes = mailboxesFetched.mailboxes;
+      setState(() {
+        _isMailboxesFetched = true;
+      });
+    } else {
+      _showSnackBar(
+        '❌获取收件箱失败: ${mailboxesFetchResult.info}',
+        red,
+        const Duration(seconds: 3),
+      );
+    }
   }
 
   List<IconData> _getMailboxIcon(String mailbox) {
@@ -135,12 +145,24 @@ class _InboxPageState extends State<InboxPage> {
 
   @override
   Widget build(BuildContext context) {
+    const neteaseTextStyle = TextStyle(fontSize: 20);
+
     const neteaseInfo = Center(
-      child: Text(
-        '😵由于网易邮箱服务器的限制，\n未经认证的第三方用户代理无法收取邮件',
-        style: TextStyle(
-          fontSize: 20,
-        ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '😵由于网易邮箱服务器的限制',
+            style: neteaseTextStyle,
+          ),
+          SizedBox(
+            height: 12,
+          ),
+          Text(
+            '未经认证的第三方用户代理无法收取邮件',
+            style: neteaseTextStyle,
+          ),
+        ],
       ),
     );
 
@@ -234,12 +256,10 @@ class MailboxPage extends StatefulWidget {
 }
 
 class _MailboxPageState extends State<MailboxPage> {
+  final _rustResultListener = RustResult.rustSignalStream;
   final _emailMetadataListener = EmailMetadata.rustSignalStream;
   final _emailDetailListener = EmailDetail.rustSignalStream;
-  final _rustResultListener = RustResult.rustSignalStream;
 
-  bool _triedFetching = false;
-  bool _existsMessage = false;
   bool _isFetchingMetadata = false;
   bool _isFetchingDetail = false;
   bool _isReadingDetail = false;
@@ -251,7 +271,7 @@ class _MailboxPageState extends State<MailboxPage> {
   late String _mailbox;
   EmailMetadata? _selectedEmail;
   EmailDetail? _emailDetail;
-  List<EmailMetadata> emailMetadatas = [];
+  final List<EmailMetadata> _emailMetadatas = [];
 
   @override
   void initState() {
@@ -262,7 +282,7 @@ class _MailboxPageState extends State<MailboxPage> {
   }
 
   Future<void> _fetchEmailMetadatas() async {
-    final countBefore = emailMetadatas.length;
+    final countBefore = _emailMetadatas.length;
 
     // Send signals
     pb.Action(action: 4).sendSignalToRust();
@@ -278,7 +298,7 @@ class _MailboxPageState extends State<MailboxPage> {
         break;
       }
       setState(() {
-        emailMetadatas.add(emailMetadata);
+        _emailMetadatas.add(emailMetadata);
       });
     }
     final metadataFetchResult = (await _rustResultListener.first).message;
@@ -289,9 +309,9 @@ class _MailboxPageState extends State<MailboxPage> {
     // Handle result
     if (metadataFetchResult.result) {
       _showSnackBar(
-        emailMetadatas.length == countBefore
+        _emailMetadatas.length == countBefore
             ? '没有新邮件'
-            : '新到达 ${emailMetadatas.length - countBefore} 封邮件',
+            : '新到达 ${_emailMetadatas.length - countBefore} 封邮件',
         null,
         const Duration(seconds: 1),
       );
@@ -302,10 +322,6 @@ class _MailboxPageState extends State<MailboxPage> {
         const Duration(seconds: 3),
       );
     }
-    setState(() {
-      _triedFetching = true;
-      _existsMessage = emailMetadatas.isNotEmpty;
-    });
   }
 
   Future<bool> _fetchEmailDetail(
@@ -360,9 +376,9 @@ class _MailboxPageState extends State<MailboxPage> {
   Widget build(BuildContext context) {
     final recvEmailList = ListView.builder(
       shrinkWrap: true,
-      itemCount: emailMetadatas.length,
+      itemCount: _emailMetadatas.length,
       itemBuilder: (context, index) {
-        final email = emailMetadatas[index];
+        final email = _emailMetadatas[index];
         return ListTile(
           title: Text(email.subject),
           subtitle: Text(
@@ -387,15 +403,20 @@ class _MailboxPageState extends State<MailboxPage> {
       appBar: _isReadingDetail
           ? null
           : AppBar(
-              title: Text('$_mailbox 中有 ${emailMetadatas.length} 封邮件'),
+              title: Text(
+                _emailMetadatas.isNotEmpty
+                    ? '$_mailbox 中有 ${_emailMetadatas.length} 封邮件'
+                    : '$_mailbox 中没有邮件',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
       floatingActionButton:
           _isFetchingMetadata || _isReadingDetail || _isFetchingDetail
               ? null
               : FloatingActionButton(
                   onPressed: _fetchEmailMetadatas,
-                  tooltip: _triedFetching ? '刷新' : '下载邮件',
-                  child: Icon(_triedFetching ? Icons.refresh : Icons.download),
+                  tooltip: '刷新',
+                  child: const Icon(Icons.refresh),
                 ),
       body: Center(
         child: Column(
@@ -423,28 +444,38 @@ class _MailboxPageState extends State<MailboxPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: _isFetchingMetadata
                           ? [
-                              Text('正在下载邮件元信息...', style: _style),
+                              Column(
+                                children: [
+                                  Text('正在下载邮件元信息...', style: _style),
+                                  const SizedBox(
+                                    height: 10,
+                                  ),
+                                  const Text(
+                                    '每次刷新最多下载 25 封邮件',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
+                                ],
+                              ),
                             ]
                           : _isFetchingDetail
                               ? [
                                   Text('正在下载正文和附件...', style: _style),
                                 ]
-                              : _triedFetching
-                                  ? _existsMessage
-                                      ? [
-                                          Text('邮件列表', style: _style),
-                                          Expanded(
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(20),
-                                              child: recvEmailList,
-                                            ),
-                                          ),
-                                        ]
-                                      : [
-                                          Text('无邮件，可刷新重试', style: _style),
-                                        ]
+                              : _emailMetadatas.isNotEmpty
+                                  ? [
+                                      Text('邮件列表', style: _style),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(10),
+                                          child: recvEmailList,
+                                        ),
+                                      ),
+                                    ]
                                   : [
-                                      Text('请手动下载邮件', style: _style),
+                                      Text(
+                                        '没有邮件，可刷新重试',
+                                        style: _style,
+                                      ),
                                     ],
                     ),
                   ),

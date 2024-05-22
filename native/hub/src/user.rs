@@ -106,23 +106,30 @@ async fn actions_after_login(
             }
 
             // Fetch mailboxes
-            3 => {
-                MailboxesFetch {
-                    mailboxes: user.fetch_mailboxes(imap_cli),
+            3 => match user.fetch_mailboxes(imap_cli) {
+                Ok(mailboxes) => {
+                    send_signal_succeed();
+                    MailboxesFetch { mailboxes }.send_signal_to_dart();
                 }
-                .send_signal_to_dart();
-            }
+                Err(e) => send_signal_failure(e.to_string()),
+            },
 
             // Fetch email metadata
             4 => {
                 if let Some(mailbox_selection) = mailbox_request_listener.recv().await {
                     match user.fetch_metadatas(
                         imap_cli,
-                        mailbox_selection.message.mailbox.to_owned(),
+                        &mailbox_selection.message.mailbox,
                         &mut starts,
                     ) {
-                        Ok(_) => send_signal_succeed(),
-                        Err(e) => send_signal_failure(e.to_string()),
+                        Ok(_) => {
+                            send_empty_email_metadata();
+                            send_signal_succeed();
+                        }
+                        Err(e) => {
+                            send_empty_email_metadata();
+                            send_signal_failure(e.to_string());
+                        }
                     };
                 }
             }
@@ -172,6 +179,17 @@ fn send_signal_failure(e: String) {
     RustResult {
         result: false,
         info: e,
+    }
+    .send_signal_to_dart();
+}
+
+fn send_empty_email_metadata() {
+    EmailMetadata {
+        uid: String::new(),
+        from: String::new(),
+        to: String::new(),
+        subject: String::new(),
+        date: String::new(),
     }
     .send_signal_to_dart();
 }
@@ -234,7 +252,7 @@ impl User {
 
     fn send(&self, smtp_cli: &SmtpTransport, new_email: NewEmail) {
         let builder = Message::builder()
-            .from(Mailbox::from(self.email_addr.clone()))
+            .from(Mailbox::from(self.email_addr.to_owned()))
             .to(Mailbox::from(match new_email.to.parse::<Address>() {
                 Ok(to) => to,
                 Err(e) => {
@@ -260,8 +278,8 @@ impl User {
             );
 
             for path in new_email.attachments.iter() {
-                let mime_type = from_path(&path.clone()).first_or_octet_stream();
-                multi_part = multi_part.singlepart(Attachment::new(path.clone()).body(
+                let mime_type = from_path(path).first_or_octet_stream();
+                multi_part = multi_part.singlepart(Attachment::new(path.into()).body(
                     fs::read(path).unwrap(),
                     mime_type.to_string().parse().unwrap(),
                 ));
@@ -277,10 +295,16 @@ impl User {
         };
     }
 
-    fn fetch_mailboxes(&self, imap_cli: &mut Session<Connection>) -> Vec<String> {
-        imap_cli
-            .list(Some(""), Some("*"))
-            .unwrap()
+    fn fetch_mailboxes(
+        &self,
+        imap_cli: &mut Session<Connection>,
+    ) -> Result<Vec<String>, Box<dyn Error>> {
+        let list = match imap_cli.list(Some(""), Some("*")) {
+            Ok(mailboxes) => mailboxes,
+            Err(e) => return Err(Box::new(e)),
+        };
+
+        Ok(list
             .iter()
             .filter_map(|s| {
                 let name = s.name();
@@ -290,26 +314,30 @@ impl User {
                     None
                 }
             })
-            .collect()
+            .collect())
     }
 
     fn fetch_metadatas(
         &self,
         imap_cli: &mut Session<Connection>,
-        mailbox: String,
+        mailbox: &String,
         starts: &mut HashMap<String, usize>,
     ) -> Result<(), Box<dyn Error>> {
         // Select mailbox
-        imap_cli.select(&mailbox).unwrap();
+        match imap_cli.select(mailbox) {
+            Ok(_) => {}
+            Err(e) => return Err(Box::new(e)),
+        }
 
         // Fetch all messages from the mailbox
-        let i = starts.entry(mailbox.to_owned()).or_insert(1);
+        let idx = starts.entry(mailbox.into()).or_insert(1);
+        let st = *idx;
         loop {
             // Construct uid
-            let uid = format!("{}:{}", mailbox, i);
+            let uid = format!("{}:{}", mailbox, idx);
 
             // Fetch metadata
-            let fetch = imap_cli.fetch(i.to_string(), "RFC822.HEADER").unwrap();
+            let fetch = imap_cli.fetch(idx.to_string(), "RFC822.HEADER").unwrap();
             if fetch.is_empty() {
                 break;
             }
@@ -328,17 +356,14 @@ impl User {
             }
             .send_signal_to_dart();
 
-            *i += 1;
+            *idx += 1;
+
+            // Fetch up to 25 messages
+            if *idx - st >= 25 {
+                break;
+            }
         }
 
-        EmailMetadata {
-            uid: String::new(),
-            from: String::new(),
-            to: String::new(),
-            subject: String::new(),
-            date: String::new(),
-        }
-        .send_signal_to_dart();
         Ok(())
     }
 
@@ -381,7 +406,7 @@ impl User {
                         let file_path = download_path.join(filename);
                         let content = part.get_body_raw()?;
                         save_attachment(file_path.to_str().unwrap(), &content)?;
-                        attachments.push(filename.to_string_lossy().into_owned());
+                        attachments.push(filename.to_string_lossy().into());
                     }
                     DispositionType::Inline => {
                         body += &part.get_body()?.to_string();

@@ -316,7 +316,7 @@ class _ComposePageState extends State<ComposePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '已选择 ${_attachments.length} 个附件 | ${_attachmentsLengthSum.toStringAsFixed(1)} MB',
+          '已选择 ${_attachments.length} 个附件 | ${_attachmentsLengthSum >= 1 ? '${_attachmentsLengthSum.toStringAsFixed(1)} MB' : '${(_attachmentsLengthSum * 1024).toStringAsFixed(1)} KB'}',
           style: const TextStyle(
             fontSize: 16,
           ),
