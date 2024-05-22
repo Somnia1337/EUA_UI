@@ -529,7 +529,10 @@ class SentEmailDetailPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('主题: ${email.subject}'),
+        title: Text(
+          '主题: ${email.subject}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: onBack,

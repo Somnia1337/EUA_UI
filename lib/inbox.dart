@@ -424,7 +424,7 @@ class _MailboxPageState extends State<MailboxPage> {
           children: _isReadingDetail
               ? [
                   Expanded(
-                    child: EmailDetailPage(
+                    child: RecvEmailDetailPage(
                       emailMetadata: _selectedEmail ?? EmailMetadata(),
                       emailDetail: _emailDetail ?? EmailDetail(),
                       folderPath: _folderPath,
@@ -486,8 +486,8 @@ class _MailboxPageState extends State<MailboxPage> {
   }
 }
 
-class EmailDetailPage extends StatefulWidget {
-  const EmailDetailPage({
+class RecvEmailDetailPage extends StatefulWidget {
+  const RecvEmailDetailPage({
     super.key,
     required this.emailMetadata,
     required this.emailDetail,
@@ -501,10 +501,10 @@ class EmailDetailPage extends StatefulWidget {
   final String folderPath;
 
   @override
-  State<EmailDetailPage> createState() => _EmailDetailPageState();
+  State<RecvEmailDetailPage> createState() => _RecvEmailDetailPageState();
 }
 
-class _EmailDetailPageState extends State<EmailDetailPage> {
+class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
   final _style = const TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
 
   late String folderPath = widget.folderPath;

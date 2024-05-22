@@ -414,7 +414,7 @@ class _SettingsPageState extends State<SettingsPage> {
           height: 8,
         ),
         Text(
-          'v0.5.5-rc1',
+          'v0.5.6',
           style: TextStyle(
             fontSize: 16,
             fontFamily: 'JetbrainsMONO',
