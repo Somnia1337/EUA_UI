@@ -1,5 +1,3 @@
-// todo: 哈希元信息 / 下载前 10 封
-
 use crate::messages::user::*;
 
 use std::{
