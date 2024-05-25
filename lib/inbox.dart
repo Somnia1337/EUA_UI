@@ -538,6 +538,8 @@ class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
   Widget build(BuildContext context) {
     const sizedBox = SizedBox(height: 4);
 
+    const bodyStyle = TextStyle(fontSize: 16, fontFamily: 'Inter');
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.emailMetadata.subject),
@@ -613,11 +615,11 @@ class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
                   child: widget.emailDetail.body.isNotEmpty
                       ? Text(
                           widget.emailDetail.body,
-                          style: const TextStyle(fontSize: 16),
+                          style: bodyStyle,
                         )
                       : const Text(
                           '[无正文]',
-                          style: TextStyle(fontSize: 16),
+                          style: bodyStyle,
                         ),
                 ),
               ),

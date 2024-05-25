@@ -523,9 +523,10 @@ class SentEmailDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const style = TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
-
     const sizedBox = SizedBox(height: 4);
+
+    const style = TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
+    const bodyStyle = TextStyle(fontSize: 16, fontFamily: 'Inter');
 
     return Scaffold(
       appBar: AppBar(
@@ -583,11 +584,11 @@ class SentEmailDetailPage extends StatelessWidget {
                   child: email.body.isNotEmpty
                       ? Text(
                           email.body,
-                          style: const TextStyle(fontSize: 16),
+                          style: bodyStyle,
                         )
                       : const Text(
                           '[无正文]',
-                          style: TextStyle(fontSize: 16),
+                          style: bodyStyle,
                         ),
                 ),
               ),

@@ -19,7 +19,6 @@ use lettre::{
     Address, Message, SmtpTransport, Transport,
 };
 use mailparse::*;
-
 use mime_guess::from_path;
 
 pub async fn login_as_new_user() {
@@ -165,38 +164,11 @@ async fn actions_after_login(
     }
 }
 
-fn send_signal_succeed() {
-    RustResult {
-        result: true,
-        info: String::new(),
-    }
-    .send_signal_to_dart();
-}
-
-fn send_signal_failure(e: String) {
-    RustResult {
-        result: false,
-        info: e,
-    }
-    .send_signal_to_dart();
-}
-
-fn send_empty_email_metadata() {
-    EmailMetadata {
-        uid: String::new(),
-        from: String::new(),
-        to: String::new(),
-        subject: String::new(),
-        date: String::new(),
-    }
-    .send_signal_to_dart();
-}
-
 #[derive(Clone)]
-pub struct User {
-    pub smtp_domain: String,
-    pub imap_domain: String,
-    pub email_addr: Address,
+struct User {
+    smtp_domain: String,
+    imap_domain: String,
+    email_addr: Address,
     password: String,
 }
 
@@ -423,6 +395,33 @@ impl User {
     }
 }
 
+fn get_header(parsed: &ParsedMail, key: &str, default: &str) -> String {
+    parsed
+        .headers
+        .get_first_value(key)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn parse_uid(uid: &str) -> (String, usize) {
+    let seg = uid.split(':').collect::<Vec<_>>();
+    (seg[0].to_string(), seg[1].parse().unwrap())
+}
+
+fn parse_message_header_or_body(message: Fetches, is_header: bool) -> String {
+    message
+        .iter()
+        .flat_map(|m| {
+            str::from_utf8(
+                (if is_header { m.header() } else { m.body() }).unwrap_or(b"error parsing message"),
+            )
+            .unwrap_or("error parsing message")
+            .lines()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn save_attachment(filename: &str, content: &[u8]) -> io::Result<()> {
     let mut path = PathBuf::from(filename);
     let mut counter = 1;
@@ -443,29 +442,29 @@ fn save_attachment(filename: &str, content: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-fn parse_message_header_or_body(message: Fetches, is_header: bool) -> String {
-    message
-        .iter()
-        .flat_map(|m| {
-            str::from_utf8(
-                (if is_header { m.header() } else { m.body() }).unwrap_or(b"error parsing message"),
-            )
-            .unwrap_or("error parsing message")
-            .lines()
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+fn send_signal_succeed() {
+    RustResult {
+        result: true,
+        info: String::new(),
+    }
+    .send_signal_to_dart();
 }
 
-fn get_header(parsed: &ParsedMail, key: &str, default: &str) -> String {
-    parsed
-        .headers
-        .get_first_value(key)
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| default.to_string())
+fn send_signal_failure(e: String) {
+    RustResult {
+        result: false,
+        info: e,
+    }
+    .send_signal_to_dart();
 }
 
-fn parse_uid(uid: &str) -> (String, usize) {
-    let seg = uid.split(':').collect::<Vec<_>>();
-    (seg[0].to_string(), seg[1].parse().unwrap())
+fn send_empty_email_metadata() {
+    EmailMetadata {
+        uid: String::new(),
+        from: String::new(),
+        to: String::new(),
+        subject: String::new(),
+        date: String::new(),
+    }
+    .send_signal_to_dart();
 }
