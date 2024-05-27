@@ -395,17 +395,17 @@ impl User {
     }
 }
 
+fn parse_uid(uid: &str) -> (String, usize) {
+    let seg = uid.split(':').collect::<Vec<_>>();
+    (seg[0].to_string(), seg[1].parse().unwrap())
+}
+
 fn get_header(parsed: &ParsedMail, key: &str, default: &str) -> String {
     parsed
         .headers
         .get_first_value(key)
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| default.to_string())
-}
-
-fn parse_uid(uid: &str) -> (String, usize) {
-    let seg = uid.split(':').collect::<Vec<_>>();
-    (seg[0].to_string(), seg[1].parse().unwrap())
 }
 
 fn parse_message_header_or_body(message: Fetches, is_header: bool) -> String {

@@ -140,7 +140,7 @@ class _ComposePageState extends State<ComposePage> {
       });
     } else {
       _showSnackBar(
-        '😥邮件发送失败: ${sendResult.info}',
+        '😵邮件发送失败: ${sendResult.info}',
         red,
         const Duration(seconds: 3),
       );
@@ -168,14 +168,14 @@ class _ComposePageState extends State<ComposePage> {
             });
           } else {
             _showSnackBar(
-              '😵‍💫附件的总大小不能超过 50MB！',
+              '😥附件的总大小不能超过 50MB！',
               red,
               const Duration(seconds: 2),
             );
           }
         } else {
           _showSnackBar(
-            '😵‍💫重复附件: ${file.path}',
+            '😥重复附件: ${file.path}',
             red,
             const Duration(seconds: 2),
           );
@@ -432,80 +432,90 @@ class _ComposePageState extends State<ComposePage> {
                 ),
               ],
             ),
-      body: _isReadingDetail
-          ? emailDetail
-          : _isSending
-              ? sendingText
-              : _isComposing
-                  ? Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 300),
-                            child: toInputField,
-                          ),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 500),
-                            child: subjectInputField,
-                          ),
-                          const SizedBox(height: 8),
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: 550,
-                              maxHeight: 70 + min(_attachments.length, 3) * 20,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                addAttachmentButton,
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8),
-                                    child: _attachments.isEmpty
-                                        ? attachmentInfo
-                                        : attachmentList,
-                                  ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final windowHeight = constraints.maxHeight;
+          final windowWidth = constraints.maxWidth;
+
+          return _isReadingDetail
+              ? emailDetail
+              : _isSending
+                  ? sendingText
+                  : _isComposing
+                      ? Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 300),
+                                child: toInputField,
+                              ),
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 500),
+                                child: subjectInputField,
+                              ),
+                              const SizedBox(height: 8),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: 550,
+                                  maxHeight:
+                                      70 + min(_attachments.length, 3) * 20,
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Expanded(
-                            child: bodyInputField,
-                          ),
-                        ],
-                      ),
-                    )
-                  : Center(
-                      child: _isEmailSent
-                          ? ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                maxHeight: 280,
-                                maxWidth: 400,
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    '已发送邮件',
-                                    style: TextStyle(
-                                      fontSize: 20,
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    addAttachmentButton,
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8),
+                                        child: _attachments.isEmpty
+                                            ? attachmentInfo
+                                            : attachmentList,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(20),
-                                      child: sentEmailList,
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            )
-                          : noEmailSentInfo,
-                    ),
+                              const SizedBox(height: 8),
+                              Expanded(
+                                child: bodyInputField,
+                              ),
+                            ],
+                          ),
+                        )
+                      : Center(
+                          child: _isEmailSent
+                              ? ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxHeight: windowHeight * 0.8,
+                                    maxWidth: windowWidth * 0.8,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text(
+                                        '已发送邮件',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(20),
+                                          child: sentEmailList,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : noEmailSentInfo,
+                        );
+        },
+      ),
     );
   }
 }
@@ -539,62 +549,68 @@ class SentEmailDetailPage extends StatelessWidget {
           onPressed: onBack,
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '发件人: ${email.from}',
-              style: style,
-            ),
-            sizedBox,
-            Text(
-              '收件人: ${email.to}',
-              style: style,
-            ),
-            sizedBox,
-            Text(
-              '时间: ${email.date}',
-              style: style,
-            ),
-            sizedBox,
-            email.attachments.isNotEmpty
-                ? Text.rich(
-                    TextSpan(
-                      text: '附件:\n',
-                      style: style,
-                      children: email.attachments.map((attachment) {
-                        return TextSpan(
-                          text: '$attachment\n',
-                          style: const TextStyle(fontSize: 16),
-                        );
-                      }).toList(),
-                    ),
-                  )
-                : const Text(
-                    '[无附件]',
-                    style: style,
-                  ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 550, maxWidth: 550),
-                child: SingleChildScrollView(
-                  child: email.body.isNotEmpty
-                      ? Text(
-                          email.body,
-                          style: bodyStyle,
-                        )
-                      : const Text(
-                          '[无正文]',
-                          style: bodyStyle,
-                        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final windowWidth = constraints.maxWidth;
+
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '发件人: ${email.from}',
+                  style: style,
                 ),
-              ),
+                sizedBox,
+                Text(
+                  '收件人: ${email.to}',
+                  style: style,
+                ),
+                sizedBox,
+                Text(
+                  '时间: ${email.date}',
+                  style: style,
+                ),
+                sizedBox,
+                email.attachments.isNotEmpty
+                    ? Text.rich(
+                        TextSpan(
+                          text: '附件:\n',
+                          style: style,
+                          children: email.attachments.map((attachment) {
+                            return TextSpan(
+                              text: '$attachment\n',
+                              style: const TextStyle(fontSize: 16),
+                            );
+                          }).toList(),
+                        ),
+                      )
+                    : const Text(
+                        '[无附件]',
+                        style: style,
+                      ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: windowWidth * 0.9),
+                    child: SingleChildScrollView(
+                      child: email.body.isNotEmpty
+                          ? Text(
+                              email.body,
+                              style: bodyStyle,
+                            )
+                          : const Text(
+                              '[无正文]',
+                              style: bodyStyle,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

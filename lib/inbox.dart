@@ -119,7 +119,7 @@ class _InboxPageState extends State<InboxPage> {
       });
     } else {
       _showSnackBar(
-        '❌获取收件箱失败: ${mailboxesFetchResult.info}',
+        '😵获取收件箱失败: ${mailboxesFetchResult.info}',
         red,
         const Duration(seconds: 3),
       );
@@ -177,7 +177,7 @@ class _InboxPageState extends State<InboxPage> {
           await _fetchMailboxes();
         } else {
           _showSnackBar(
-            '❗必须选择附件保存位置才能下载邮件',
+            '😥必须选择附件保存位置才能下载邮件',
             red,
             const Duration(seconds: 2),
           );
@@ -311,13 +311,13 @@ class _MailboxPageState extends State<MailboxPage> {
       _showSnackBar(
         _emailMetadatas.length == countBefore
             ? '没有新邮件'
-            : '新到达 ${_emailMetadatas.length - countBefore} 封邮件',
+            : '📧新到达 ${_emailMetadatas.length - countBefore} 封邮件',
         null,
         const Duration(seconds: 1),
       );
     } else {
       _showSnackBar(
-        '下载失败: ${metadataFetchResult.info}',
+        '😵下载失败: ${metadataFetchResult.info}',
         red,
         const Duration(seconds: 3),
       );
@@ -349,7 +349,7 @@ class _MailboxPageState extends State<MailboxPage> {
       return true;
     }
     _showSnackBar(
-      '下载失败: ${fetchMessagesResult.info}',
+      '😵下载失败: ${fetchMessagesResult.info}',
       red,
       const Duration(seconds: 3),
     );
@@ -418,69 +418,78 @@ class _MailboxPageState extends State<MailboxPage> {
                   tooltip: '刷新',
                   child: const Icon(Icons.refresh),
                 ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: _isReadingDetail
-              ? [
-                  Expanded(
-                    child: RecvEmailDetailPage(
-                      emailMetadata: _selectedEmail ?? EmailMetadata(),
-                      emailDetail: _emailDetail ?? EmailDetail(),
-                      folderPath: _folderPath,
-                      onBack: () {
-                        setState(() {
-                          _isReadingDetail = false;
-                        });
-                      },
-                    ),
-                  ),
-                ]
-              : [
-                  ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxHeight: 350, maxWidth: 500),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: _isFetchingMetadata
-                          ? [
-                              Column(
-                                children: [
-                                  Text('正在下载邮件元信息...', style: _style),
-                                  const SizedBox(
-                                    height: 10,
-                                  ),
-                                  const Text(
-                                    '每次刷新最多下载 25 封邮件',
-                                    style: TextStyle(fontSize: 16),
-                                  ),
-                                ],
-                              ),
-                            ]
-                          : _isFetchingDetail
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final windowHeight = constraints.maxHeight;
+          final windowWidth = constraints.maxWidth;
+
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: _isReadingDetail
+                  ? [
+                      Expanded(
+                        child: RecvEmailDetailPage(
+                          emailMetadata: _selectedEmail ?? EmailMetadata(),
+                          emailDetail: _emailDetail ?? EmailDetail(),
+                          folderPath: _folderPath,
+                          onBack: () {
+                            setState(() {
+                              _isReadingDetail = false;
+                            });
+                          },
+                        ),
+                      ),
+                    ]
+                  : [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: windowHeight * 0.8,
+                          maxWidth: windowWidth * 0.8,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: _isFetchingMetadata
                               ? [
-                                  Text('正在下载正文和附件...', style: _style),
-                                ]
-                              : _emailMetadatas.isNotEmpty
-                                  ? [
-                                      Text('邮件列表', style: _style),
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(10),
-                                          child: recvEmailList,
-                                        ),
+                                  Column(
+                                    children: [
+                                      Text('正在下载邮件元信息...', style: _style),
+                                      const SizedBox(
+                                        height: 10,
                                       ),
-                                    ]
-                                  : [
-                                      Text(
-                                        '没有邮件，可刷新重试',
-                                        style: _style,
+                                      const Text(
+                                        '每次刷新最多下载 25 封邮件',
+                                        style: TextStyle(fontSize: 16),
                                       ),
                                     ],
-                    ),
-                  ),
-                ],
-        ),
+                                  ),
+                                ]
+                              : _isFetchingDetail
+                                  ? [
+                                      Text('正在下载正文和附件...', style: _style),
+                                    ]
+                                  : _emailMetadatas.isNotEmpty
+                                      ? [
+                                          Text('邮件列表', style: _style),
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(10),
+                                              child: recvEmailList,
+                                            ),
+                                          ),
+                                        ]
+                                      : [
+                                          Text(
+                                            '没有邮件，可刷新重试',
+                                            style: _style,
+                                          ),
+                                        ],
+                        ),
+                      ),
+                    ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -514,7 +523,7 @@ class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
     if (await canLaunchUrl(folderUri)) {
       await launchUrl(folderUri);
     } else {
-      _showSnackBar('❌无法打开 $folderPath', red, const Duration(seconds: 3));
+      _showSnackBar('😵打开失败: $folderPath', red, const Duration(seconds: 3));
     }
   }
 
@@ -548,84 +557,90 @@ class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
           onPressed: widget.onBack,
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '发件人: ${widget.emailMetadata.from}',
-              style: _style,
-            ),
-            sizedBox,
-            Text(
-              '收件人: ${widget.emailMetadata.to}',
-              style: _style,
-            ),
-            sizedBox,
-            Text(
-              '时间: ${widget.emailMetadata.date}',
-              style: _style,
-            ),
-            sizedBox,
-            widget.emailDetail.attachments.isNotEmpty
-                ? Row(
-                    children: [
-                      Row(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final windowWidth = constraints.maxWidth;
+
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '发件人: ${widget.emailMetadata.from}',
+                  style: _style,
+                ),
+                sizedBox,
+                Text(
+                  '收件人: ${widget.emailMetadata.to}',
+                  style: _style,
+                ),
+                sizedBox,
+                Text(
+                  '时间: ${widget.emailMetadata.date}',
+                  style: _style,
+                ),
+                sizedBox,
+                widget.emailDetail.attachments.isNotEmpty
+                    ? Row(
                         children: [
-                          Text(
-                            '附件:',
-                            style: _style,
+                          Row(
+                            children: [
+                              Text(
+                                '附件:',
+                                style: _style,
+                              ),
+                              IconButton(
+                                onPressed: () => _openFolder(folderPath),
+                                icon: const Icon(Icons.folder_outlined),
+                                tooltip: '打开附件位置',
+                                splashRadius: 20,
+                              ),
+                            ],
                           ),
-                          IconButton(
-                            onPressed: () => _openFolder(folderPath),
-                            icon: const Icon(Icons.folder_outlined),
-                            tooltip: '打开附件位置',
-                            splashRadius: 20,
+                          Text.rich(
+                            TextSpan(
+                              text: '\n',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              children: widget.emailDetail.attachments
+                                  .map((attachment) {
+                                return TextSpan(
+                                  text: '$attachment\n',
+                                  style: const TextStyle(fontSize: 16),
+                                );
+                              }).toList(),
+                            ),
                           ),
                         ],
+                      )
+                    : Text(
+                        '[无附件]',
+                        style: _style,
                       ),
-                      Text.rich(
-                        TextSpan(
-                          text: '\n',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          children:
-                              widget.emailDetail.attachments.map((attachment) {
-                            return TextSpan(
-                              text: '$attachment\n',
-                              style: const TextStyle(fontSize: 16),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ],
-                  )
-                : Text(
-                    '[无附件]',
-                    style: _style,
+                const SizedBox(height: 20),
+                Expanded(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: windowWidth * 0.9),
+                    child: SingleChildScrollView(
+                      child: widget.emailDetail.body.isNotEmpty
+                          ? Text(
+                              widget.emailDetail.body,
+                              style: bodyStyle,
+                            )
+                          : const Text(
+                              '[无正文]',
+                              style: bodyStyle,
+                            ),
+                    ),
                   ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 550, maxWidth: 550),
-                child: SingleChildScrollView(
-                  child: widget.emailDetail.body.isNotEmpty
-                      ? Text(
-                          widget.emailDetail.body,
-                          style: bodyStyle,
-                        )
-                      : const Text(
-                          '[无正文]',
-                          style: bodyStyle,
-                        ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

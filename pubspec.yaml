@@ -1,12 +1,12 @@
 name: eua_ui
-description: "An email user agent implemented in Flutter & Rust."
+description: "Simple email user agent implemented in Flutter & Rust."
 
-publish_to: 'none'
+publish_to: "none"
 
-version: 0.5.7
+version: 0.5.8
 
 environment:
-  sdk: '>=3.3.4 <4.0.0'
+  sdk: ">=3.3.4 <4.0.0"
 
 dependencies:
   another_flutter_splash_screen: ^1.2.0
@@ -18,9 +18,9 @@ dependencies:
   flutter_launcher_icons: ^0.13.1
   protobuf: ^3.1.0
   provider: ^6.0.5
-  rinf: ^6.8.0
+  rinf: ^6.10.0
   url_launcher: ^6.0.20
-  
+
 dev_dependencies:
   flutter_lints: ^3.0.0
   flutter_test:
@@ -55,7 +55,7 @@ msix_config:
   display_name: eua_ui
   publisher_display_name: Somnia1337
   identity_name: somnia1337.eua-ui
-  msix_version: 0.5.7.0
+  msix_version: 0.5.8.0
   logo_path: D:\Image\Logo\Icon\EUA.ico
   capabilities: internetClient
   certificate_path: D:\Apps\Somnia1337Certificate.pfx

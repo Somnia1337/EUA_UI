@@ -107,18 +107,18 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<bool> login() async {
     if (_emailAddrController.text == '' && _passwordController.text == '') {
       _showSnackBar(
-        '😵‍💫"邮箱"和"授权码"是必填字段！',
+        '😥还没有填写"邮箱"和"授权码"',
         red,
         const Duration(seconds: 2),
       );
       return Future.value(false);
     }
     if (_emailAddrController.text == '') {
-      _showSnackBar('😵‍💫"邮箱"是必填字段！', red, const Duration(seconds: 2));
+      _showSnackBar('😥还没有填写"邮箱"', red, const Duration(seconds: 2));
       return Future.value(false);
     }
     if (_passwordController.text == '') {
-      _showSnackBar('😵‍💫"授权码"是必填字段！', red, const Duration(seconds: 2));
+      _showSnackBar('😥还没有填写"授权码"', red, const Duration(seconds: 2));
       return Future.value(false);
     }
 
@@ -138,7 +138,7 @@ class _SettingsPageState extends State<SettingsPage> {
       return true;
     }
     _showSnackBar(
-      '😥登录失败: ${loginResult.info}',
+      '😵登录失败: ${loginResult.info}',
       red,
       const Duration(seconds: 3),
     );
@@ -153,7 +153,7 @@ class _SettingsPageState extends State<SettingsPage> {
       return true;
     }
     _showSnackBar(
-      '😥退出登录失败: ${logoutResult.info}',
+      '😵退出登录失败: ${logoutResult.info}',
       red,
       const Duration(seconds: 3),
     );
@@ -284,53 +284,56 @@ class _SettingsPageState extends State<SettingsPage> {
 
     const sizedBox = SizedBox(height: 12);
 
+    final emailAddrInputField = TextFormField(
+      controller: _emailAddrController,
+      decoration: InputDecoration(
+        labelText: '邮箱',
+        border: const UnderlineInputBorder(),
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.clear_rounded),
+          splashRadius: 20,
+          onPressed: () {
+            _emailAddrController.clear();
+            _passwordController.clear();
+          },
+        ),
+      ),
+      keyboardType: TextInputType.emailAddress,
+      onFieldSubmitted: (value) {
+        FocusScope.of(context).requestFocus(_passwordFocusNode);
+      },
+    );
+    final passwordInputField = TextFormField(
+      controller: _passwordController,
+      obscureText: !_isPasswordVisible,
+      focusNode: _passwordFocusNode,
+      decoration: InputDecoration(
+        labelText: '授权码 (不是邮箱密码!!)',
+        border: const UnderlineInputBorder(),
+        suffixIcon: IconButton(
+          icon: Icon(
+            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+          ),
+          splashRadius: 20,
+          onPressed: () {
+            setState(() {
+              _isPasswordVisible = !_isPasswordVisible;
+            });
+          },
+        ),
+      ),
+      onEditingComplete: _triggerLoginOrLogout,
+    );
+
     final inputFields = Column(
       children: [
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 250),
-          child: TextFormField(
-            controller: _emailAddrController,
-            decoration: InputDecoration(
-              labelText: '邮箱',
-              border: const UnderlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.clear_rounded),
-                splashRadius: 20,
-                onPressed: () {
-                  _emailAddrController.clear();
-                  _passwordController.clear();
-                },
-              ),
-            ),
-            keyboardType: TextInputType.emailAddress,
-            onFieldSubmitted: (value) {
-              FocusScope.of(context).requestFocus(_passwordFocusNode);
-            },
-          ),
+          child: emailAddrInputField,
         ),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 250),
-          child: TextFormField(
-            controller: _passwordController,
-            obscureText: !_isPasswordVisible,
-            focusNode: _passwordFocusNode,
-            decoration: InputDecoration(
-              labelText: '授权码 (不是邮箱密码!!)',
-              border: const UnderlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                ),
-                splashRadius: 20,
-                onPressed: () {
-                  setState(() {
-                    _isPasswordVisible = !_isPasswordVisible;
-                  });
-                },
-              ),
-            ),
-            onEditingComplete: _triggerLoginOrLogout,
-          ),
+          child: passwordInputField,
         ),
       ],
     );
@@ -404,7 +407,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
         Text(
-          '🎯Dart, 🦀Rust & 🩷Love.',
+          '🎯Dart, 🦀Rust & 🩷love.',
           style: TextStyle(
             fontSize: 16,
             fontFamily: 'DingTalk',
@@ -414,7 +417,7 @@ class _SettingsPageState extends State<SettingsPage> {
           height: 8,
         ),
         Text(
-          'v0.5.7',
+          'v0.5.8',
           style: TextStyle(
             fontSize: 16,
             fontFamily: 'JetbrainsMONO',
