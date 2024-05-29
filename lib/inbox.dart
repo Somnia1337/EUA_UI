@@ -311,7 +311,7 @@ class _MailboxPageState extends State<MailboxPage> {
       _showSnackBar(
         _emailMetadatas.length == countBefore
             ? '没有新邮件'
-            : '📧新到达 ${_emailMetadatas.length - countBefore} 封邮件',
+            : '📫新到达 ${_emailMetadatas.length - countBefore} 封邮件',
         null,
         const Duration(seconds: 1),
       );
@@ -514,8 +514,6 @@ class RecvEmailDetailPage extends StatefulWidget {
 }
 
 class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
-  final _style = const TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
-
   late String folderPath = widget.folderPath;
 
   Future<void> _openFolder(String folderPath) async {
@@ -547,6 +545,11 @@ class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
   Widget build(BuildContext context) {
     const sizedBox = SizedBox(height: 4);
 
+    const headerStyle = TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+      fontFamily: 'Inter',
+    );
     const bodyStyle = TextStyle(fontSize: 16, fontFamily: 'Inter');
 
     return Scaffold(
@@ -568,17 +571,17 @@ class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
               children: [
                 Text(
                   '发件人: ${widget.emailMetadata.from}',
-                  style: _style,
+                  style: headerStyle,
                 ),
                 sizedBox,
                 Text(
                   '收件人: ${widget.emailMetadata.to}',
-                  style: _style,
+                  style: headerStyle,
                 ),
                 sizedBox,
                 Text(
                   '时间: ${widget.emailMetadata.date}',
-                  style: _style,
+                  style: headerStyle,
                 ),
                 sizedBox,
                 widget.emailDetail.attachments.isNotEmpty
@@ -586,9 +589,9 @@ class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
                         children: [
                           Row(
                             children: [
-                              Text(
+                              const Text(
                                 '附件:',
-                                style: _style,
+                                style: headerStyle,
                               ),
                               IconButton(
                                 onPressed: () => _openFolder(folderPath),
@@ -616,9 +619,9 @@ class _RecvEmailDetailPageState extends State<RecvEmailDetailPage> {
                           ),
                         ],
                       )
-                    : Text(
+                    : const Text(
                         '[无附件]',
-                        style: _style,
+                        style: headerStyle,
                       ),
                 const SizedBox(height: 20),
                 Expanded(

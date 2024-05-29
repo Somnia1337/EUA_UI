@@ -3,7 +3,7 @@ description: "Simple email user agent implemented in Flutter & Rust."
 
 publish_to: "none"
 
-version: 0.5.8
+version: 0.5.9
 
 environment:
   sdk: ">=3.3.4 <4.0.0"
@@ -55,7 +55,7 @@ msix_config:
   display_name: eua_ui
   publisher_display_name: Somnia1337
   identity_name: somnia1337.eua-ui
-  msix_version: 0.5.8.0
+  msix_version: 0.5.9.0
   logo_path: D:\Image\Logo\Icon\EUA.ico
   capabilities: internetClient
   certificate_path: D:\Apps\Somnia1337Certificate.pfx

@@ -370,7 +370,9 @@ class _SettingsPageState extends State<SettingsPage> {
         IconButton(
           icon:
               Icon(!_isLoggedIn ? Icons.login_outlined : Icons.logout_outlined),
-          tooltip: _isLoggedIn ? '退出登录' : '登录',
+          tooltip: _isLoggedIn
+              ? (_isLogging ? '正在退出登录' : '退出登录')
+              : (_isLogging ? '正在登录' : '登录'),
           onPressed: !_isLogging ? _triggerLoginOrLogout : null,
           splashRadius: 20,
         ),
@@ -417,7 +419,7 @@ class _SettingsPageState extends State<SettingsPage> {
           height: 8,
         ),
         Text(
-          'v0.5.8',
+          'v0.5.9',
           style: TextStyle(
             fontSize: 16,
             fontFamily: 'JetbrainsMONO',
