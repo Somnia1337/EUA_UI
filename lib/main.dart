@@ -8,6 +8,8 @@ import 'package:provider/provider.dart';
 import './messages/generated.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
   await initializeRust();
 
   runApp(
