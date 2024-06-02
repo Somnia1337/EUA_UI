@@ -1,7 +1,5 @@
 # [EUA_UI](https://github.com/Somnia1337/EUA_UI)
 
-A sketchy email user agent (eua) implemented in Flutter (frontend) & Rust (backend).
+一个简易的邮件用户代理，作为四川大学(SCU)「计算机网络」课程项目，使用 Flutter (前端) + Rust (后端) 实现。
 
-## Getting Started
-
-Download the latest release [here](https://github.com/Somnia1337/EUA_UI/releases).
+从 [这里](https://github.com/Somnia1337/EUA_UI/releases) 下载最新的 release。
