@@ -29,5 +29,5 @@
 </div>
 
 <div align=center>
-  <img src="https://github.com/Somnia1337/EUA_UI/blob/main/eua_ui_4-reshot.png?raw=true">
+  <img src="https://github.com/Somnia1337/EUA_UI/blob/main/eua_ui_4-reshot_2.png?raw=true">
 </div>
