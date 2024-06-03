@@ -6,7 +6,7 @@
 
 “Echo Unity Archivist”(谐声收藏家) 是 “email user agent” 的一个更花哨的名字，它们的首字母相同。
 
-从 [这里](https://github.com/Somnia1337/EUA_UI/releases) 下载最新的 release。
+从 [这里](https://github.com/Somnia1337/EUA_UI/releases) 下载最新的 release (仅 Windows 桌面应用)。
 
 ## 课程项目要求
 
